@@ -9,11 +9,6 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(fognav_msgs REQUIRED)
-#find_package(geographic_msgs REQUIRED)
-#find_package(geometry_msgs REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
 
 include_directories(include)
 
@@ -23,8 +18,6 @@ add_library(${PROJECT_NAME}_lib
 ament_target_dependencies(${PROJECT_NAME}_lib
   rclcpp
   fognav_msgs
-  #geometry_msgs
-  #geographic_msgs
   )
 
 add_executable(${PROJECT_NAME}

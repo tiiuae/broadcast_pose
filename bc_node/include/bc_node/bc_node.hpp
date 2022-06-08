@@ -13,7 +13,7 @@ namespace bc_node {
 
 constexpr size_t kUdpBufferLength{1024};
 constexpr size_t kSignatureSize{0};
-constexpr size_t kSignedMessageSize{612};
+constexpr size_t kSignedMessageSize{614};
 
 struct GeoPoint // 3*8 bytes = 24 Bytes = 192 bits
 {
@@ -102,20 +102,23 @@ struct Pose // 56 Bytes = 448 bits
     }
 };
 
-struct BroadcastMessage // 20 + 4 + 4 + 24 + 10*56
+struct BroadcastMessage // 20 + 2 + 4 + 4 + 24 + 10*56
 {
     char droneid[20];
+    uint16_t priority;
     uint32_t sec;
     uint32_t nsec;
-    uint16_t priority;
     bc_node::GeoPoint datum;
     bc_node::Pose path[10];
 
     std::string serialize() const
     {
         std::string serialized;
-        serialized.append(droneid);
-        serialized.append((const char*) &priority, sizeof(uint32_t));
+        for (int k = 0; k < 20; k++)
+        {
+            serialized += droneid[k];
+        }
+        serialized.append((const char*) &priority, sizeof(uint16_t));
         serialized.append((const char*) &sec, sizeof(uint32_t));
         serialized.append((const char*) &nsec, sizeof(uint32_t));
         serialized.append(datum.serialize());
@@ -132,7 +135,7 @@ struct BroadcastMessage // 20 + 4 + 4 + 24 + 10*56
             droneid[j] = message[j];
         }
         // memcpy(&droneid, &message, 20);
-        memcpy(&sec, &message[20], sizeof(uint16_t));
+        memcpy(&priority, &message[20], sizeof(uint16_t));
         memcpy(&sec, &message[22], sizeof(uint32_t));
         memcpy(&nsec, &message[26], sizeof(uint32_t));
         datum.deserialize(message.substr(30));
@@ -203,8 +206,10 @@ private:
     ///@ingroup storage, containers
 
     // Container for observed senders book keeping
-    std::set<std::string> observed_senders_{};
+    // std::set<std::string> observed_senders_{};
+    // Map to store the latest drone signature check timestamp
     std::map<std::string, rclcpp::Time> observed_senders_times_{};
+    // Container to count messages per drone - e.g. detect message flooding
     std::map<std::string, uint16_t> sender_count_{};
 
     /// Previously received own trajectory

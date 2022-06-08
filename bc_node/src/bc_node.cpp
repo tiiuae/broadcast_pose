@@ -267,7 +267,7 @@ bool BCNode::send_udp(const std::string& msg)
         RCLCPP_ERROR(get_logger(), "UDP sending failed - sendto()");
         return false;
     }
-    RCLCPP_DEBUG_STREAM(get_logger(), "UDP " << sent_bytes << " / " << msg.size() << " Bytes sent.");
+    RCLCPP_INFO_STREAM(get_logger(), "UDP " << sent_bytes << " / " << msg.size() << " Bytes sent.");
     return true;
 }
 
@@ -283,12 +283,11 @@ void BCNode::broadcast_udp_message()
     }
     else
     {
-        RCLCPP_INFO(get_logger(),
-                    "Time delta %.2f seconds",
-                    (now() - trajectory_.header.stamp).seconds());
+        RCLCPP_DEBUG(get_logger(),
+                     "Time delta %.2f seconds",
+                     (now() - trajectory_.header.stamp).seconds());
     }
 
-    std::string message;
     // generate message
     BroadcastMessage bc_message;
     strncpy(bc_message.droneid, device_id_.c_str(), 20);
@@ -313,10 +312,13 @@ void BCNode::broadcast_udp_message()
         }
     }
     // serialize
+    std::string message;
     message = bc_message.serialize();
+    RCLCPP_DEBUG(get_logger(), "Serialized message length: %ld", message.size());
 
     // sign
     std::string signed_msg{sign(message)};
+    RCLCPP_DEBUG(get_logger(), "Signed message length: %ld", signed_msg.size());
 
     // send the message
     send_udp(signed_msg);
@@ -356,14 +358,11 @@ std::string BCNode::receive_udp()
 
     received.assign(buf, received_bytes);
     // print received data and sender details
-    RCLCPP_DEBUG(get_logger(),
-                 "Received %d B packet from %s:%d\n",
-                 received_bytes,
-                 inet_ntoa(recv_addr_.sin_addr),
-                 ntohs(recv_addr_.sin_port));
-    RCLCPP_DEBUG(get_logger(), "Data: %s\n", buf);
-    RCLCPP_DEBUG_STREAM(get_logger(), "Str: " << received);
-
+    RCLCPP_INFO(get_logger(),
+                "Received %d B packet from %s:%d\n",
+                received_bytes,
+                inet_ntoa(recv_addr_.sin_addr),
+                ntohs(recv_addr_.sin_port));
     if (received.empty())
     {
         RCLCPP_WARN(get_logger(), "UDP receiving failed - nothing received");
@@ -387,7 +386,9 @@ void BCNode::receive_broadcast_message()
         else if (received_str.size() != kSignedMessageSize)
         {
             RCLCPP_WARN(get_logger(),
-                        "Received unexpected message size from IP: %s",
+                        "Received unexpected message size (%ld / %ld B) from IP: %s",
+                        received_str.size(),
+                        kSignedMessageSize,
                         inet_ntoa(recv_addr_.sin_addr));
             continue;
         }
@@ -421,6 +422,10 @@ void BCNode::receive_broadcast_message()
             // observed_senders_.insert(received.droneid);
             observed_senders_times_[received.droneid] = now();
             RCLCPP_INFO_STREAM(get_logger(), "Signature verified: " << received.droneid);
+        }
+        else
+        {
+            RCLCPP_DEBUG(get_logger(), "Signature verification skipped.");
         }
         sender_count_[received.droneid]++;
 
@@ -476,7 +481,7 @@ void BCNode::broadcast_udp_message_2()
         RCLCPP_ERROR(get_logger(), "Failed to serialize broadcast message");
         return;
     }
-    RCLCPP_DEBUG(get_logger(), "Serialized payload size: %ld Bytes", serialized_msg_.buffer_length);
+    RCLCPP_INFO(get_logger(), "Serialized payload size: %ld Bytes", serialized_msg_.buffer_length);
 
     // Sign the message
     std::string message((char*) serialized_msg_.buffer, serialized_msg_.buffer_length);
@@ -502,7 +507,7 @@ void BCNode::receive_broadcast_message_2()
 
         // Conpy to to serialized msg
         ///@todo fix the size check
-        if (received_str.size() < kSignatureSize + 100)
+        if (received_str.size() < kSignedMessageSize)
         {
             memcpy(serialized_in_msg_.buffer,
                    received_str.data(),
@@ -511,7 +516,9 @@ void BCNode::receive_broadcast_message_2()
         }
         else
         {
-            RCLCPP_INFO(get_logger(), "Invalid size UDP packet received.");
+            RCLCPP_WARN(get_logger(),
+                        "Invalid size UDP packet received (%ld Bytes).",
+                        received_str.size());
             continue;
         }
 
@@ -537,7 +544,10 @@ void BCNode::receive_broadcast_message_2()
             observed_senders_times_[received->droneid] = now();
             RCLCPP_INFO_STREAM(get_logger(), "Signature verified: " << received->droneid);
         }
-
+        else
+        {
+            RCLCPP_DEBUG(get_logger(), "Signature verification skipped.");
+        }
         sender_count_[received->droneid]++;
         // Relay message forward
         pub_->publish(std::move(received));
