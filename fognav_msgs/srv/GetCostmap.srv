@@ -1,0 +1,6 @@
+# Get the costmap
+
+# Specifications for the requested costmap
+fognav_msgs/CostmapMetaData specs
+---
+fognav_msgs/Costmap map

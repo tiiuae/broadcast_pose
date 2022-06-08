@@ -1,0 +1,18 @@
+bc_node:
+  ros__parameters:
+    # Broadcast configuration
+    broadcast_ip_address: 192.168.1.255
+    broadcast_port: 3911
+    broadcast_interval_s: 0.1 # <=0.0 send trajectory immediately when received from navigation
+    # Own drone priority in the fleet
+    right_of_way_priority: 100
+    # How often the received signature is verified (<= 0.0 all signatures verified)
+    signature_check_interval_s: 1.0
+    # How often receive buffers are checked
+    receive_interval_s: 0.1
+    # Own drone trajectory for next few seconds to be broadcasted out
+    input_trajectory_topic: "navigation/trajectory"
+    # Publishing trajectories received from other drones
+    output_trajectory_topic: "bc_node/trajectories"
+    # Drone id
+    device_id: "Testidrone"

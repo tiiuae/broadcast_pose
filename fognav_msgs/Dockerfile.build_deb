@@ -1,0 +1,19 @@
+
+FROM ghcr.io/tiiuae/fog-ros-baseimage:builder-latest
+ARG GIT_COMMIT_HASH
+ARG GIT_VERSION_STRING
+COPY . /main_ws/src/fog_navigation
+WORKDIR /main_ws/src/fog_navigation
+RUN ls -la
+# RUN git_commit_hash=$(git rev-parse HEAD)
+# RUN git_version_string=$(git log --date=format:%Y%m%d --pretty=~git%cd.%h -n 1) 
+RUN echo $GIT_COMMIT_HASH
+RUN echo $GIT_VERSION_STRING
+RUN rm -r /main_ws/src/fog_navigation
+WORKDIR /main_ws/src/
+COPY ./fognav_msgs /main_ws/src/.
+# this:
+# 1) builds the application
+# 2) packages the application as .deb & writes it to /main_ws/
+RUN /packaging/build-and-package-as-deb.sh -g $GIT_COMMIT_HASH -v $GIT_VERSION_STRING
+
