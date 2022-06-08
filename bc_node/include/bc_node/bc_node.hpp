@@ -163,14 +163,15 @@ private:
 
     /// @ingroup Message sending
     void broadcast_udp_message();
-    void broadcast_udp_message_2();
     bool send_udp(const std::string& msg);
 
     /// @ingroup Message receiving
     void receive_broadcast_message();
-    void receive_broadcast_message_2();
     std::string receive_udp();
-    // bool receive_serialized_udp(rmw_serialized_message_t *received);
+
+    /// @ingroup Serialization functions
+    std::string get_serialized_trajectory();
+    fognav_msgs::msg::Trajectory::UniquePtr deserialize_trajectory(const std::string& msg);
 
     /// @ingroup signing
     std::string sign(const std::string& msg) { return msg; };
@@ -202,6 +203,9 @@ private:
     uint16_t right_of_way_{100};
     std::string device_id_{"undefined"};
     double max_age_{0.5};
+    bool use_ros_serialization_{false};
+
+    size_t udp_size_variance_{0};
 
     ///@ingroup storage, containers
 
