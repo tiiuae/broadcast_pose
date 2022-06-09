@@ -4,7 +4,6 @@
 #include <arpa/inet.h>
 #include <fognav_msgs/msg/trajectory.hpp>
 #include <rclcpp/rclcpp.hpp>
-
 //#include <memory>
 //#include <mutex>
 //#include <string>
@@ -13,138 +12,6 @@ namespace bc_node {
 
 constexpr size_t kUdpBufferLength{1024};
 constexpr size_t kSignatureSize{0};
-constexpr size_t kSignedMessageSize{614};
-
-struct GeoPoint // 3*8 bytes = 24 Bytes = 192 bits
-{
-    double lat;
-    double lon;
-    double alt;
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append((const char*) &lat, sizeof(double));
-        serialized.append((const char*) &lon, sizeof(double));
-        serialized.append((const char*) &alt, sizeof(double));
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        memcpy(&lat, &message[0], sizeof(double));
-        memcpy(&lon, &message[8], sizeof(double));
-        memcpy(&alt, &message[16], sizeof(double));
-    }
-};
-
-struct Point // 3*8 bytes = 24 Bytes = 192 bits
-{
-    double x;
-    double y;
-    double z;
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append((const char*) &x, sizeof(double));
-        serialized.append((const char*) &y, sizeof(double));
-        serialized.append((const char*) &z, sizeof(double));
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        memcpy(&x, &message[0], sizeof(double));
-        memcpy(&y, &message[8], sizeof(double));
-        memcpy(&z, &message[16], sizeof(double));
-    }
-};
-
-struct Quaternion // 4*8 bytes = 32 Bytes = 256 bits
-{
-    double x;
-    double y;
-    double z;
-    double w;
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append((const char*) &x, sizeof(double));
-        serialized.append((const char*) &y, sizeof(double));
-        serialized.append((const char*) &z, sizeof(double));
-        serialized.append((const char*) &w, sizeof(double));
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        memcpy(&x, &message[0], sizeof(double));
-        memcpy(&y, &message[8], sizeof(double));
-        memcpy(&z, &message[16], sizeof(double));
-        memcpy(&w, &message[24], sizeof(double));
-    }
-};
-
-struct Pose // 56 Bytes = 448 bits
-{
-    Point point;
-    Quaternion orientation;
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append(point.serialize());
-        serialized.append(orientation.serialize());
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        point.deserialize(message);
-        orientation.deserialize(message.substr(24));
-    }
-};
-
-struct BroadcastMessage // 20 + 2 + 4 + 4 + 24 + 10*56
-{
-    char droneid[20];
-    uint16_t priority;
-    uint32_t sec;
-    uint32_t nsec;
-    bc_node::GeoPoint datum;
-    bc_node::Pose path[10];
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        for (int k = 0; k < 20; k++)
-        {
-            serialized += droneid[k];
-        }
-        serialized.append((const char*) &priority, sizeof(uint16_t));
-        serialized.append((const char*) &sec, sizeof(uint32_t));
-        serialized.append((const char*) &nsec, sizeof(uint32_t));
-        serialized.append(datum.serialize());
-        for (int i = 0; i < 10; ++i)
-        {
-            serialized.append(path[i].serialize());
-        }
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        for (int j = 0; j < 20; j++)
-        {
-            droneid[j] = message[j];
-        }
-        // memcpy(&droneid, &message, 20);
-        memcpy(&priority, &message[20], sizeof(uint16_t));
-        memcpy(&sec, &message[22], sizeof(uint32_t));
-        memcpy(&nsec, &message[26], sizeof(uint32_t));
-        datum.deserialize(message.substr(30));
-        for (int i = 0; i < 10; ++i)
-        {
-            path[i].deserialize(message.substr(54 + 56 * i));
-        }
-    }
-};
 
 class BCNode : public rclcpp::Node
 {
@@ -203,9 +70,10 @@ private:
     uint16_t right_of_way_{100};
     std::string device_id_{"undefined"};
     double max_age_{0.5};
-    bool use_ros_serialization_{false};
+    int serialization_method_{0};
 
-    size_t udp_size_variance_{0};
+    size_t message_min_size_{614};
+    size_t message_max_size_{614};
 
     ///@ingroup storage, containers
 

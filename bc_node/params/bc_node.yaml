@@ -13,4 +13,4 @@ bc_node:
     # Publishing trajectories received from other drones
     output_trajectory_topic: "bc_node/trajectories"
     # Serialization selection
-    use_ros_serialization: false
+    serialization_method: 0

@@ -1,4 +1,5 @@
 #include "bc_node/bc_node.hpp"
+#include "bc_node/broadcast_message.hpp"
 #include "bc_node/param_checker.hpp"
 #include <errno.h>
 #include <sys/socket.h>
@@ -55,10 +56,27 @@ bool BCNode::init()
     const std::string trajectory_topic_out{
         get_param(*this, "output_trajectory_topic", std::string("bc_node/trajectories"))};
 
-    use_ros_serialization_ = get_param(*this, "use_ros_serialization", false);
-    if (use_ros_serialization_)
+    serialization_method_ = get_param(*this, "serialization_method", 0);
+
+    switch (serialization_method_)
     {
-        udp_size_variance_ = 22;
+    case 1:
+        message_min_size_ = message_max_size_ = 614;
+        break;
+    case 2:
+        message_min_size_ = message_max_size_ = 334;
+        break;
+    case 3:
+        message_min_size_ = message_max_size_ = 194;
+        break;
+    case 4:
+        message_min_size_ = message_max_size_ = 99;
+        break;
+
+    default:
+        message_min_size_ = 610;
+        message_max_size_ = 636;
+        break;
     }
 
     // Own trajectory subscriber
@@ -152,7 +170,7 @@ bool BCNode::init()
     // Serialized broadcast message initialization
     serialized_msg_ = rmw_get_zero_initialized_serialized_message();
     auto allocator = rcutils_get_default_allocator();
-    auto initial_capacity = kSignedMessageSize + udp_size_variance_;
+    auto initial_capacity = message_max_size_ + kSignatureSize;
     auto ret = rmw_serialized_message_init(&serialized_msg_, initial_capacity, &allocator);
     if (ret != RCL_RET_OK)
     {
@@ -181,7 +199,8 @@ bool BCNode::init()
                 "- broadcast_interval: %5.2f s\n"
                 "- immediate_broadcast: %s\n"
                 "- signature_check_interval: %5.2f s\n"
-                "- verify_all_signatures: %s\n",
+                "- verify_all_signatures: %s\n"
+                "- serialization_method: %d\n",
                 trajectory_topic_in.c_str(),
                 trajectory_topic_out.c_str(),
                 broadcast_ip_.c_str(),
@@ -189,7 +208,8 @@ bool BCNode::init()
                 broadcast_interval.count(),
                 immediate_broadcast_ ? "true" : "false",
                 signature_check_interval_,
-                verify_all_signatures_ ? "true" : "false");
+                verify_all_signatures_ ? "true" : "false",
+                serialization_method_);
 
     RCLCPP_INFO(get_logger(), "Node initialized");
 
@@ -247,24 +267,7 @@ void BCNode::signature_clear_callback()
 /// @return Serialized trajectroy as string
 std::string BCNode::get_serialized_trajectory()
 {
-    if (use_ros_serialization_)
-    {
-        rmw_ret_t ret;
-        {
-            const std::scoped_lock<std::mutex> _(trajectory_access_);
-            ret = rmw_serialize(&trajectory_, trajectory_ts_, &serialized_msg_);
-        }
-        if (ret != RMW_RET_OK)
-        {
-            RCLCPP_ERROR(get_logger(), "Failed to serialize broadcast message");
-            return {};
-        }
-        RCLCPP_DEBUG(get_logger(),
-                     "Serialized payload size: %ld Bytes",
-                     serialized_msg_.buffer_length);
-        return std::string((char*) serialized_msg_.buffer, serialized_msg_.buffer_length);
-    }
-    else
+    if (serialization_method_ == 1)
     {
         // generate message
         BroadcastMessage bc_message;
@@ -295,6 +298,114 @@ std::string BCNode::get_serialized_trajectory()
         }
         return bc_message.serialize();
     }
+    if (serialization_method_ == 2)
+    {
+        // generate message
+        BroadcastMessage32 bc_message;
+        {
+            const std::scoped_lock<std::mutex> _(trajectory_access_);
+            strncpy(bc_message.droneid, trajectory_.droneid.c_str(), 20);
+
+            bc_message.priority = trajectory_.priority;
+
+            bc_message.sec = trajectory_.header.stamp.sec;
+            bc_message.nsec = trajectory_.header.stamp.nanosec;
+
+            bc_message.datum.lat = trajectory_.datum.latitude;
+            bc_message.datum.lon = trajectory_.datum.longitude;
+            bc_message.datum.alt = trajectory_.datum.altitude;
+
+            for (int i = 0; i < 10; i++)
+            {
+                bc_message.path[i].point.x = trajectory_.poses[i].position.x;
+                bc_message.path[i].point.y = trajectory_.poses[i].position.y;
+                bc_message.path[i].point.z = trajectory_.poses[i].position.z;
+
+                bc_message.path[i].orientation.x = trajectory_.poses[i].orientation.x;
+                bc_message.path[i].orientation.y = trajectory_.poses[i].orientation.y;
+                bc_message.path[i].orientation.z = trajectory_.poses[i].orientation.z;
+                bc_message.path[i].orientation.w = trajectory_.poses[i].orientation.w;
+            }
+        }
+        return bc_message.serialize();
+    }
+    if (serialization_method_ == 3)
+    {
+        // generate message
+        BroadcastMessage16 bc_message;
+        {
+            const std::scoped_lock<std::mutex> _(trajectory_access_);
+            strncpy(bc_message.droneid, trajectory_.droneid.c_str(), 20);
+
+            bc_message.priority = trajectory_.priority;
+
+            bc_message.sec = trajectory_.header.stamp.sec;
+            bc_message.nsec = trajectory_.header.stamp.nanosec;
+
+            bc_message.datum.lat = trajectory_.datum.latitude;
+            bc_message.datum.lon = trajectory_.datum.longitude;
+            bc_message.datum.alt = trajectory_.datum.altitude;
+
+            for (int i = 0; i < 10; i++)
+            {
+                bc_message.path[i].point.x = static_cast<int16_t>(
+                    10 * trajectory_.poses[i].position.x);
+                bc_message.path[i].point.y = static_cast<int16_t>(
+                    10 * trajectory_.poses[i].position.y);
+                bc_message.path[i].point.z = static_cast<int16_t>(
+                    10 * trajectory_.poses[i].position.z);
+
+                bc_message.path[i].orientation.x = static_cast<int16_t>(
+                    10000 * trajectory_.poses[i].orientation.x);
+                bc_message.path[i].orientation.y = static_cast<int16_t>(
+                    10000 * trajectory_.poses[i].orientation.y);
+                bc_message.path[i].orientation.z = static_cast<int16_t>(
+                    10000 * trajectory_.poses[i].orientation.z);
+                bc_message.path[i].orientation.w = static_cast<int16_t>(
+                    10000 * trajectory_.poses[i].orientation.w);
+            }
+        }
+        return bc_message.serialize();
+    }
+    if (serialization_method_ == 4)
+    {
+        // generate message
+        BroadcastMessageMin bc_message;
+        {
+            const std::scoped_lock<std::mutex> _(trajectory_access_);
+            strncpy(bc_message.droneid, trajectory_.droneid.c_str(), 20);
+
+            bc_message.priority = trajectory_.priority;
+
+            bc_message.sec = trajectory_.header.stamp.sec;
+            bc_message.nsec = trajectory_.header.stamp.nanosec;
+
+            bc_message.datum.lat = static_cast<int32_t>(trajectory_.datum.latitude * 1000000);
+            bc_message.datum.lon = static_cast<int32_t>(trajectory_.datum.longitude * 1000000);
+            bc_message.datum.alt = static_cast<int16_t>(trajectory_.datum.altitude * 10);
+
+            for (int i = 0; i < 10; i++)
+            {
+                bc_message.path[i].x = static_cast<int16_t>(10 * trajectory_.poses[i].position.x);
+                bc_message.path[i].y = static_cast<int16_t>(10 * trajectory_.poses[i].position.y);
+                bc_message.path[i].z = static_cast<int16_t>(10 * trajectory_.poses[i].position.z);
+            }
+        }
+        return bc_message.serialize();
+    }
+
+    rmw_ret_t ret;
+    {
+        const std::scoped_lock<std::mutex> _(trajectory_access_);
+        ret = rmw_serialize(&trajectory_, trajectory_ts_, &serialized_msg_);
+    }
+    if (ret != RMW_RET_OK)
+    {
+        RCLCPP_ERROR(get_logger(), "Failed to serialize broadcast message");
+        return {};
+    }
+    RCLCPP_DEBUG(get_logger(), "Serialized payload size: %ld Bytes", serialized_msg_.buffer_length);
+    return std::string((char*) serialized_msg_.buffer, serialized_msg_.buffer_length);
 }
 
 /// @brief Function to deserialize UDP packet string to Trajectory message
@@ -304,23 +415,7 @@ std::string BCNode::get_serialized_trajectory()
 fognav_msgs::msg::Trajectory::UniquePtr BCNode::deserialize_trajectory(const std::string& msg)
 {
     auto trajectory = std::make_unique<fognav_msgs::msg::Trajectory>();
-    if (use_ros_serialization_)
-    {
-        if (msg.size() < kSignedMessageSize - udp_size_variance_)
-        {
-            RCLCPP_ERROR(get_logger(), "Failed to deserialize serialized message. Too little data");
-            return {};
-        }
-        memcpy(serialized_in_msg_.buffer, msg.data(), msg.size() - kSignatureSize);
-        serialized_in_msg_.buffer_length = msg.size() - kSignatureSize;
-        auto ret = rmw_deserialize(&serialized_in_msg_, trajectory_ts_, trajectory.get());
-        if (ret != RMW_RET_OK)
-        {
-            RCLCPP_ERROR(get_logger(), "failed to deserialize serialized message.");
-            return {};
-        }
-    }
-    else
+    if (serialization_method_ == 1)
     {
         BroadcastMessage received;
         received.deserialize(msg);
@@ -341,6 +436,94 @@ fognav_msgs::msg::Trajectory::UniquePtr BCNode::deserialize_trajectory(const std
             trajectory->poses[i].orientation.y = received.path[i].orientation.y;
             trajectory->poses[i].orientation.z = received.path[i].orientation.z;
             trajectory->poses[i].orientation.w = received.path[i].orientation.w;
+        }
+    }
+    else if (serialization_method_ == 2)
+    {
+        BroadcastMessage32 received;
+        received.deserialize(msg);
+        trajectory->droneid = std::string(received.droneid);
+        trajectory->priority = received.priority;
+        trajectory->header.stamp.sec = received.sec;
+        trajectory->header.stamp.nanosec = received.nsec;
+        trajectory->datum.latitude = received.datum.lat;
+        trajectory->datum.longitude = received.datum.lon;
+        trajectory->datum.altitude = received.datum.alt;
+        for (int i = 0; i < 10; i++)
+        {
+            trajectory->poses[i].position.x = received.path[i].point.x;
+            trajectory->poses[i].position.y = received.path[i].point.y;
+            trajectory->poses[i].position.z = received.path[i].point.z;
+
+            trajectory->poses[i].orientation.x = received.path[i].orientation.x;
+            trajectory->poses[i].orientation.y = received.path[i].orientation.y;
+            trajectory->poses[i].orientation.z = received.path[i].orientation.z;
+            trajectory->poses[i].orientation.w = received.path[i].orientation.w;
+        }
+    }
+    else if (serialization_method_ == 3)
+    {
+        BroadcastMessage16 received;
+        received.deserialize(msg);
+        trajectory->droneid = std::string(received.droneid);
+        trajectory->priority = received.priority;
+        trajectory->header.stamp.sec = received.sec;
+        trajectory->header.stamp.nanosec = received.nsec;
+        trajectory->datum.latitude = received.datum.lat;
+        trajectory->datum.longitude = received.datum.lon;
+        trajectory->datum.altitude = received.datum.alt;
+        for (int i = 0; i < 10; i++)
+        {
+            trajectory->poses[i].position.x = 0.1 * static_cast<double>(received.path[i].point.x);
+            trajectory->poses[i].position.y = 0.1 * static_cast<double>(received.path[i].point.y);
+            trajectory->poses[i].position.z = 0.1 * static_cast<double>(received.path[i].point.z);
+
+            trajectory->poses[i].orientation.x = 0.0001
+                                                 * static_cast<double>(
+                                                     received.path[i].orientation.x);
+            trajectory->poses[i].orientation.y = 0.0001
+                                                 * static_cast<double>(
+                                                     received.path[i].orientation.y);
+            trajectory->poses[i].orientation.z = 0.0001
+                                                 * static_cast<double>(
+                                                     received.path[i].orientation.z);
+            trajectory->poses[i].orientation.w = 0.0001
+                                                 * static_cast<double>(
+                                                     received.path[i].orientation.w);
+        }
+    }
+    else if (serialization_method_ == 4)
+    {
+        BroadcastMessageMin received;
+        received.deserialize(msg);
+        trajectory->droneid = std::string(received.droneid);
+        trajectory->priority = received.priority;
+        trajectory->header.stamp.sec = received.sec;
+        trajectory->header.stamp.nanosec = received.nsec;
+        trajectory->datum.latitude = 0.000001 * static_cast<double>(received.datum.lat);
+        trajectory->datum.longitude = 0.000001 * static_cast<double>(received.datum.lon);
+        trajectory->datum.altitude = 0.1 * static_cast<double>(received.datum.alt);
+        for (int i = 0; i < 10; i++)
+        {
+            trajectory->poses[i].position.x = 0.1 * static_cast<double>(received.path[i].x);
+            trajectory->poses[i].position.y = 0.1 * static_cast<double>(received.path[i].y);
+            trajectory->poses[i].position.z = 0.1 * static_cast<double>(received.path[i].z);
+        }
+    }
+    else
+    {
+        if (msg.size() < message_min_size_)
+        {
+            RCLCPP_ERROR(get_logger(), "Failed to deserialize serialized message. Too little data");
+            return {};
+        }
+        memcpy(serialized_in_msg_.buffer, msg.data(), msg.size() - kSignatureSize);
+        serialized_in_msg_.buffer_length = msg.size() - kSignatureSize;
+        auto ret = rmw_deserialize(&serialized_in_msg_, trajectory_ts_, trajectory.get());
+        if (ret != RMW_RET_OK)
+        {
+            RCLCPP_ERROR(get_logger(), "failed to deserialize serialized message.");
+            return {};
         }
     }
     return trajectory;
@@ -460,8 +643,7 @@ void BCNode::receive_broadcast_message()
             RCLCPP_DEBUG(get_logger(), "No more data");
             return;
         }
-        else if (received_str.size() < kSignedMessageSize - udp_size_variance_
-                 || received_str.size() > kSignedMessageSize + udp_size_variance_)
+        else if (received_str.size() < message_min_size_ || received_str.size() > message_max_size_)
         {
             RCLCPP_WARN(get_logger(),
                         "Received unexpected message size (%ld) from IP: %s",
