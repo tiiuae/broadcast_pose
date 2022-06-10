@@ -7,6 +7,108 @@
 
 namespace bc_node {
 
+template<typename BCM>
+inline void fill_trajectory(fognav_msgs::msg::Trajectory::UniquePtr& trajectory,
+                            const BCM& received,
+                            const bool fixedpoint_pose = false,
+                            const bool fixedpoint_datum = false)
+{
+    trajectory->droneid = std::string(received.droneid);
+    trajectory->priority = received.priority;
+    trajectory->header.stamp.sec = received.sec;
+    trajectory->header.stamp.nanosec = received.nsec;
+    if (fixedpoint_datum)
+    {
+        trajectory->datum.latitude = 0.000001 * static_cast<double>(received.datum.lat);
+        trajectory->datum.longitude = 0.000001 * static_cast<double>(received.datum.lon);
+        trajectory->datum.altitude = 0.1 * static_cast<double>(received.datum.alt);
+    }
+    else
+    {
+        trajectory->datum.latitude = received.datum.lat;
+        trajectory->datum.longitude = received.datum.lon;
+        trajectory->datum.altitude = received.datum.alt;
+    }
+    if (!fixedpoint_pose)
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            trajectory->poses[i].position.x = received.path[i].point.x;
+            trajectory->poses[i].position.y = received.path[i].point.y;
+            trajectory->poses[i].position.z = received.path[i].point.z;
+            trajectory->poses[i].orientation.x = received.path[i].orientation.x;
+            trajectory->poses[i].orientation.y = received.path[i].orientation.y;
+            trajectory->poses[i].orientation.z = received.path[i].orientation.z;
+            trajectory->poses[i].orientation.w = received.path[i].orientation.w;
+        }
+        return;
+    }
+    for (int i = 0; i < 10; i++)
+    {
+        trajectory->poses[i].position.x = 0.1 * static_cast<double>(received.path[i].point.x);
+        trajectory->poses[i].position.y = 0.1 * static_cast<double>(received.path[i].point.y);
+        trajectory->poses[i].position.z = 0.1 * static_cast<double>(received.path[i].point.z);
+
+        trajectory->poses[i].orientation.x = 0.0001
+                                             * static_cast<double>(received.path[i].orientation.x);
+        trajectory->poses[i].orientation.y = 0.0001
+                                             * static_cast<double>(received.path[i].orientation.y);
+        trajectory->poses[i].orientation.z = 0.0001
+                                             * static_cast<double>(received.path[i].orientation.z);
+        trajectory->poses[i].orientation.w = 0.0001
+                                             * static_cast<double>(received.path[i].orientation.w);
+    }
+}
+
+template<typename BCM>
+inline void fill_bc_message(BCM& bc_message,
+                            fognav_msgs::msg::Trajectory& trajectory,
+                            const bool fixedpoint_pose = false)
+{
+    strncpy(bc_message.droneid, trajectory.droneid.c_str(), 20);
+    bc_message.priority = trajectory.priority;
+    bc_message.sec = trajectory.header.stamp.sec;
+    bc_message.nsec = trajectory.header.stamp.nanosec;
+    bc_message.datum.lat = trajectory.datum.latitude;
+    bc_message.datum.lon = trajectory.datum.longitude;
+    bc_message.datum.alt = trajectory.datum.altitude;
+    if (fixedpoint_pose)
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            bc_message.path[i].point.x = static_cast<int16_t>(
+                std::round(10. * trajectory.poses[i].position.x));
+            bc_message.path[i].point.y = static_cast<int16_t>(
+                std::round(10. * trajectory.poses[i].position.y));
+            bc_message.path[i].point.z = static_cast<int16_t>(
+                std::round(10. * trajectory.poses[i].position.z));
+
+            bc_message.path[i].orientation.x = static_cast<int16_t>(
+                std::round(10000. * trajectory.poses[i].orientation.x));
+            bc_message.path[i].orientation.y = static_cast<int16_t>(
+                std::round(10000. * trajectory.poses[i].orientation.y));
+            bc_message.path[i].orientation.z = static_cast<int16_t>(
+                std::round(10000. * trajectory.poses[i].orientation.z));
+            bc_message.path[i].orientation.w = static_cast<int16_t>(
+                std::round(10000. * trajectory.poses[i].orientation.w));
+        }
+    }
+    else
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            bc_message.path[i].point.x = trajectory.poses[i].position.x;
+            bc_message.path[i].point.y = trajectory.poses[i].position.y;
+            bc_message.path[i].point.z = trajectory.poses[i].position.z;
+
+            bc_message.path[i].orientation.x = trajectory.poses[i].orientation.x;
+            bc_message.path[i].orientation.y = trajectory.poses[i].orientation.y;
+            bc_message.path[i].orientation.z = trajectory.poses[i].orientation.z;
+            bc_message.path[i].orientation.w = trajectory.poses[i].orientation.w;
+        }
+    }
+}
+
 /// @brief Constructor
 ///
 /// @param[in]  node_name       Node name
@@ -72,7 +174,6 @@ bool BCNode::init()
     case 4:
         message_min_size_ = message_max_size_ = 99;
         break;
-
     default:
         message_min_size_ = 610;
         message_max_size_ = 636;
@@ -273,28 +374,7 @@ std::string BCNode::get_serialized_trajectory()
         BroadcastMessage bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
-            strncpy(bc_message.droneid, trajectory_.droneid.c_str(), 20);
-
-            bc_message.priority = trajectory_.priority;
-
-            bc_message.sec = trajectory_.header.stamp.sec;
-            bc_message.nsec = trajectory_.header.stamp.nanosec;
-
-            bc_message.datum.lat = trajectory_.datum.latitude;
-            bc_message.datum.lon = trajectory_.datum.longitude;
-            bc_message.datum.alt = trajectory_.datum.altitude;
-
-            for (int i = 0; i < 10; i++)
-            {
-                bc_message.path[i].point.x = trajectory_.poses[i].position.x;
-                bc_message.path[i].point.y = trajectory_.poses[i].position.y;
-                bc_message.path[i].point.z = trajectory_.poses[i].position.z;
-
-                bc_message.path[i].orientation.x = trajectory_.poses[i].orientation.x;
-                bc_message.path[i].orientation.y = trajectory_.poses[i].orientation.y;
-                bc_message.path[i].orientation.z = trajectory_.poses[i].orientation.z;
-                bc_message.path[i].orientation.w = trajectory_.poses[i].orientation.w;
-            }
+            fill_bc_message(bc_message, trajectory_);
         }
         return bc_message.serialize();
     }
@@ -304,28 +384,7 @@ std::string BCNode::get_serialized_trajectory()
         BroadcastMessage32 bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
-            strncpy(bc_message.droneid, trajectory_.droneid.c_str(), 20);
-
-            bc_message.priority = trajectory_.priority;
-
-            bc_message.sec = trajectory_.header.stamp.sec;
-            bc_message.nsec = trajectory_.header.stamp.nanosec;
-
-            bc_message.datum.lat = trajectory_.datum.latitude;
-            bc_message.datum.lon = trajectory_.datum.longitude;
-            bc_message.datum.alt = trajectory_.datum.altitude;
-
-            for (int i = 0; i < 10; i++)
-            {
-                bc_message.path[i].point.x = trajectory_.poses[i].position.x;
-                bc_message.path[i].point.y = trajectory_.poses[i].position.y;
-                bc_message.path[i].point.z = trajectory_.poses[i].position.z;
-
-                bc_message.path[i].orientation.x = trajectory_.poses[i].orientation.x;
-                bc_message.path[i].orientation.y = trajectory_.poses[i].orientation.y;
-                bc_message.path[i].orientation.z = trajectory_.poses[i].orientation.z;
-                bc_message.path[i].orientation.w = trajectory_.poses[i].orientation.w;
-            }
+            fill_bc_message(bc_message, trajectory_);
         }
         return bc_message.serialize();
     }
@@ -335,35 +394,7 @@ std::string BCNode::get_serialized_trajectory()
         BroadcastMessage16 bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
-            strncpy(bc_message.droneid, trajectory_.droneid.c_str(), 20);
-
-            bc_message.priority = trajectory_.priority;
-
-            bc_message.sec = trajectory_.header.stamp.sec;
-            bc_message.nsec = trajectory_.header.stamp.nanosec;
-
-            bc_message.datum.lat = trajectory_.datum.latitude;
-            bc_message.datum.lon = trajectory_.datum.longitude;
-            bc_message.datum.alt = trajectory_.datum.altitude;
-
-            for (int i = 0; i < 10; i++)
-            {
-                bc_message.path[i].point.x = static_cast<int16_t>(
-                    10 * trajectory_.poses[i].position.x);
-                bc_message.path[i].point.y = static_cast<int16_t>(
-                    10 * trajectory_.poses[i].position.y);
-                bc_message.path[i].point.z = static_cast<int16_t>(
-                    10 * trajectory_.poses[i].position.z);
-
-                bc_message.path[i].orientation.x = static_cast<int16_t>(
-                    10000 * trajectory_.poses[i].orientation.x);
-                bc_message.path[i].orientation.y = static_cast<int16_t>(
-                    10000 * trajectory_.poses[i].orientation.y);
-                bc_message.path[i].orientation.z = static_cast<int16_t>(
-                    10000 * trajectory_.poses[i].orientation.z);
-                bc_message.path[i].orientation.w = static_cast<int16_t>(
-                    10000 * trajectory_.poses[i].orientation.w);
-            }
+            fill_bc_message(bc_message, trajectory_, true);
         }
         return bc_message.serialize();
     }
@@ -371,26 +402,45 @@ std::string BCNode::get_serialized_trajectory()
     {
         // generate message
         BroadcastMessageMin bc_message;
+        bool oversized_prio_warn{false};
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
             strncpy(bc_message.droneid, trajectory_.droneid.c_str(), 20);
 
             bc_message.priority = trajectory_.priority;
+            if (trajectory_.priority > std::numeric_limits<decltype(bc_message.priority)>::max())
+            {
+                bc_message.priority = std::numeric_limits<decltype(bc_message.priority)>::max();
+                oversized_prio_warn = true;
+            }
 
             bc_message.sec = trajectory_.header.stamp.sec;
             bc_message.nsec = trajectory_.header.stamp.nanosec;
 
-            bc_message.datum.lat = static_cast<int32_t>(trajectory_.datum.latitude * 1000000);
-            bc_message.datum.lon = static_cast<int32_t>(trajectory_.datum.longitude * 1000000);
-            bc_message.datum.alt = static_cast<int16_t>(trajectory_.datum.altitude * 10);
+            bc_message.datum.lat = static_cast<int32_t>(
+                std::round(trajectory_.datum.latitude * 1000000.));
+            bc_message.datum.lon = static_cast<int32_t>(
+                std::round(trajectory_.datum.longitude * 1000000.));
+            bc_message.datum.alt = static_cast<int16_t>(trajectory_.datum.altitude * 10.);
 
             for (int i = 0; i < 10; i++)
             {
-                bc_message.path[i].x = static_cast<int16_t>(10 * trajectory_.poses[i].position.x);
-                bc_message.path[i].y = static_cast<int16_t>(10 * trajectory_.poses[i].position.y);
-                bc_message.path[i].z = static_cast<int16_t>(10 * trajectory_.poses[i].position.z);
+                bc_message.path[i].x = static_cast<int16_t>(
+                    std::round(10. * trajectory_.poses[i].position.x));
+                bc_message.path[i].y = static_cast<int16_t>(
+                    std::round(10. * trajectory_.poses[i].position.y));
+                bc_message.path[i].z = static_cast<int16_t>(
+                    std::round(10. * trajectory_.poses[i].position.z));
             }
         }
+        if (oversized_prio_warn)
+        {
+            RCLCPP_WARN_ONCE(get_logger(),
+                             "Priority %d exceeds broadcast limit %d",
+                             trajectory_.priority,
+                             std::numeric_limits<decltype(bc_message.priority)>::max());
+        }
+        // serialize message
         return bc_message.serialize();
     }
 
@@ -419,87 +469,32 @@ fognav_msgs::msg::Trajectory::UniquePtr BCNode::deserialize_trajectory(const std
     {
         BroadcastMessage received;
         received.deserialize(msg);
-        trajectory->droneid = std::string(received.droneid);
-        trajectory->priority = received.priority;
-        trajectory->header.stamp.sec = received.sec;
-        trajectory->header.stamp.nanosec = received.nsec;
-        trajectory->datum.latitude = received.datum.lat;
-        trajectory->datum.longitude = received.datum.lon;
-        trajectory->datum.altitude = received.datum.alt;
-        for (int i = 0; i < 10; i++)
-        {
-            trajectory->poses[i].position.x = received.path[i].point.x;
-            trajectory->poses[i].position.y = received.path[i].point.y;
-            trajectory->poses[i].position.z = received.path[i].point.z;
-
-            trajectory->poses[i].orientation.x = received.path[i].orientation.x;
-            trajectory->poses[i].orientation.y = received.path[i].orientation.y;
-            trajectory->poses[i].orientation.z = received.path[i].orientation.z;
-            trajectory->poses[i].orientation.w = received.path[i].orientation.w;
-        }
+        fill_trajectory(trajectory, received);
     }
     else if (serialization_method_ == 2)
     {
         BroadcastMessage32 received;
         received.deserialize(msg);
-        trajectory->droneid = std::string(received.droneid);
-        trajectory->priority = received.priority;
-        trajectory->header.stamp.sec = received.sec;
-        trajectory->header.stamp.nanosec = received.nsec;
-        trajectory->datum.latitude = received.datum.lat;
-        trajectory->datum.longitude = received.datum.lon;
-        trajectory->datum.altitude = received.datum.alt;
-        for (int i = 0; i < 10; i++)
-        {
-            trajectory->poses[i].position.x = received.path[i].point.x;
-            trajectory->poses[i].position.y = received.path[i].point.y;
-            trajectory->poses[i].position.z = received.path[i].point.z;
-
-            trajectory->poses[i].orientation.x = received.path[i].orientation.x;
-            trajectory->poses[i].orientation.y = received.path[i].orientation.y;
-            trajectory->poses[i].orientation.z = received.path[i].orientation.z;
-            trajectory->poses[i].orientation.w = received.path[i].orientation.w;
-        }
+        fill_trajectory(trajectory, received);
     }
     else if (serialization_method_ == 3)
     {
         BroadcastMessage16 received;
         received.deserialize(msg);
-        trajectory->droneid = std::string(received.droneid);
-        trajectory->priority = received.priority;
-        trajectory->header.stamp.sec = received.sec;
-        trajectory->header.stamp.nanosec = received.nsec;
-        trajectory->datum.latitude = received.datum.lat;
-        trajectory->datum.longitude = received.datum.lon;
-        trajectory->datum.altitude = received.datum.alt;
-        for (int i = 0; i < 10; i++)
-        {
-            trajectory->poses[i].position.x = 0.1 * static_cast<double>(received.path[i].point.x);
-            trajectory->poses[i].position.y = 0.1 * static_cast<double>(received.path[i].point.y);
-            trajectory->poses[i].position.z = 0.1 * static_cast<double>(received.path[i].point.z);
-
-            trajectory->poses[i].orientation.x = 0.0001
-                                                 * static_cast<double>(
-                                                     received.path[i].orientation.x);
-            trajectory->poses[i].orientation.y = 0.0001
-                                                 * static_cast<double>(
-                                                     received.path[i].orientation.y);
-            trajectory->poses[i].orientation.z = 0.0001
-                                                 * static_cast<double>(
-                                                     received.path[i].orientation.z);
-            trajectory->poses[i].orientation.w = 0.0001
-                                                 * static_cast<double>(
-                                                     received.path[i].orientation.w);
-        }
+        fill_trajectory(trajectory, received, true);
     }
     else if (serialization_method_ == 4)
     {
         BroadcastMessageMin received;
         received.deserialize(msg);
+
         trajectory->droneid = std::string(received.droneid);
+
         trajectory->priority = received.priority;
+
         trajectory->header.stamp.sec = received.sec;
         trajectory->header.stamp.nanosec = received.nsec;
+
         trajectory->datum.latitude = 0.000001 * static_cast<double>(received.datum.lat);
         trajectory->datum.longitude = 0.000001 * static_cast<double>(received.datum.lon);
         trajectory->datum.altitude = 0.1 * static_cast<double>(received.datum.alt);
@@ -657,7 +652,7 @@ void BCNode::receive_broadcast_message()
         auto trajectory = deserialize_trajectory(received_str);
         if (!trajectory)
         {
-            RCLCPP_ERROR(get_logger(), "failed to deserialize serialized message.");
+            RCLCPP_ERROR(get_logger(), "failed to deserialize serialized message. received nullptr");
             continue;
         }
 

@@ -109,8 +109,8 @@ struct Point16 // 3*2 bytes = 6 Bytes = 48 bits
     void deserialize(const std::string& message)
     {
         memcpy(&x, &message[0], sizeof(x));
-        memcpy(&y, &message[4], sizeof(y));
-        memcpy(&z, &message[8], sizeof(z));
+        memcpy(&y, &message[2], sizeof(y));
+        memcpy(&z, &message[4], sizeof(z));
     }
 };
 
