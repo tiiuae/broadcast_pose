@@ -661,6 +661,19 @@ void BCNode::receive_broadcast_message()
             continue;
         }
 
+        sender_count_[trajectory->droneid]++;
+
+        // Check that IP matches the droneid
+        if (!check_ip(trajectory->droneid, recv_addr_))
+        {
+            RCLCPP_WARN_STREAM(get_logger(),
+                               "DRONE_ID vs. IP verification failed: "
+                                   << trajectory->droneid
+                                   << " not matching with:" << inet_ntoa(recv_addr_.sin_addr));
+            /// @todo Do some security signalling...
+            continue;
+        }
+
         // Verify signature
         if (!observed_senders_times_.count(trajectory->droneid))
         {
@@ -678,7 +691,6 @@ void BCNode::receive_broadcast_message()
         {
             RCLCPP_DEBUG(get_logger(), "Signature verification skipped.");
         }
-        sender_count_[trajectory->droneid]++;
         // Relay message forward
         pub_->publish(std::move(trajectory));
     }
