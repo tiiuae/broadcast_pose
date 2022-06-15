@@ -3,7 +3,9 @@ bc_node:
     # Broadcast configuration
     broadcast_ip_address: 192.168.1.255
     broadcast_port: 3911
-    broadcast_interval_s: 0.1 # <=0.0 send trajectory immediately when received from navigation
+    broadcast_interval_s: 0.1 # 0.0 send trajectory immediately when received from navigation
+    broadcast_trajectory_max_age_s: 0.5 # [0.0 ... 60.0]
+
     # How often the received signature is verified (<= 0.0 all signatures verified)
     signature_check_interval_s: 1.0
     # How often receive buffers are checked
@@ -13,4 +15,8 @@ bc_node:
     # Publishing trajectories received from other drones
     output_trajectory_topic: "bc_node/trajectories"
     # Serialization selection
-    serialization_method: 3
+    serialization_method: 3 # 0: Use ROS/DDS message serialization for input message
+                            # 1: BroadcasMessage 614 Bytes
+                            # 2: BroadcastMessage32 334 Bytes
+                            # 3: BroadcastMessage16 194 Bytes
+                            # 4: BroadcastMessageMin 99 Bytes

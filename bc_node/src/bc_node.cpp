@@ -7,108 +7,6 @@
 
 namespace bc_node {
 
-template<typename BCM>
-inline void fill_trajectory(fognav_msgs::msg::Trajectory::UniquePtr& trajectory,
-                            const BCM& received,
-                            const bool fixedpoint_pose = false,
-                            const bool fixedpoint_datum = false)
-{
-    trajectory->droneid = std::string(received.droneid);
-    trajectory->priority = received.priority;
-    trajectory->header.stamp.sec = received.sec;
-    trajectory->header.stamp.nanosec = received.nsec;
-    if (fixedpoint_datum)
-    {
-        trajectory->datum.latitude = 0.000001 * static_cast<double>(received.datum.lat);
-        trajectory->datum.longitude = 0.000001 * static_cast<double>(received.datum.lon);
-        trajectory->datum.altitude = 0.1 * static_cast<double>(received.datum.alt);
-    }
-    else
-    {
-        trajectory->datum.latitude = received.datum.lat;
-        trajectory->datum.longitude = received.datum.lon;
-        trajectory->datum.altitude = received.datum.alt;
-    }
-    if (!fixedpoint_pose)
-    {
-        for (int i = 0; i < 10; i++)
-        {
-            trajectory->poses[i].position.x = received.path[i].point.x;
-            trajectory->poses[i].position.y = received.path[i].point.y;
-            trajectory->poses[i].position.z = received.path[i].point.z;
-            trajectory->poses[i].orientation.x = received.path[i].orientation.x;
-            trajectory->poses[i].orientation.y = received.path[i].orientation.y;
-            trajectory->poses[i].orientation.z = received.path[i].orientation.z;
-            trajectory->poses[i].orientation.w = received.path[i].orientation.w;
-        }
-        return;
-    }
-    for (int i = 0; i < 10; i++)
-    {
-        trajectory->poses[i].position.x = 0.1 * static_cast<double>(received.path[i].point.x);
-        trajectory->poses[i].position.y = 0.1 * static_cast<double>(received.path[i].point.y);
-        trajectory->poses[i].position.z = 0.1 * static_cast<double>(received.path[i].point.z);
-
-        trajectory->poses[i].orientation.x = 0.0001
-                                             * static_cast<double>(received.path[i].orientation.x);
-        trajectory->poses[i].orientation.y = 0.0001
-                                             * static_cast<double>(received.path[i].orientation.y);
-        trajectory->poses[i].orientation.z = 0.0001
-                                             * static_cast<double>(received.path[i].orientation.z);
-        trajectory->poses[i].orientation.w = 0.0001
-                                             * static_cast<double>(received.path[i].orientation.w);
-    }
-}
-
-template<typename BCM>
-inline void fill_bc_message(BCM& bc_message,
-                            fognav_msgs::msg::Trajectory& trajectory,
-                            const bool fixedpoint_pose = false)
-{
-    strncpy(bc_message.droneid, trajectory.droneid.c_str(), 20);
-    bc_message.priority = trajectory.priority;
-    bc_message.sec = trajectory.header.stamp.sec;
-    bc_message.nsec = trajectory.header.stamp.nanosec;
-    bc_message.datum.lat = trajectory.datum.latitude;
-    bc_message.datum.lon = trajectory.datum.longitude;
-    bc_message.datum.alt = trajectory.datum.altitude;
-    if (fixedpoint_pose)
-    {
-        for (int i = 0; i < 10; i++)
-        {
-            bc_message.path[i].point.x = static_cast<int16_t>(
-                std::round(10. * trajectory.poses[i].position.x));
-            bc_message.path[i].point.y = static_cast<int16_t>(
-                std::round(10. * trajectory.poses[i].position.y));
-            bc_message.path[i].point.z = static_cast<int16_t>(
-                std::round(10. * trajectory.poses[i].position.z));
-
-            bc_message.path[i].orientation.x = static_cast<int16_t>(
-                std::round(10000. * trajectory.poses[i].orientation.x));
-            bc_message.path[i].orientation.y = static_cast<int16_t>(
-                std::round(10000. * trajectory.poses[i].orientation.y));
-            bc_message.path[i].orientation.z = static_cast<int16_t>(
-                std::round(10000. * trajectory.poses[i].orientation.z));
-            bc_message.path[i].orientation.w = static_cast<int16_t>(
-                std::round(10000. * trajectory.poses[i].orientation.w));
-        }
-    }
-    else
-    {
-        for (int i = 0; i < 10; i++)
-        {
-            bc_message.path[i].point.x = trajectory.poses[i].position.x;
-            bc_message.path[i].point.y = trajectory.poses[i].position.y;
-            bc_message.path[i].point.z = trajectory.poses[i].position.z;
-
-            bc_message.path[i].orientation.x = trajectory.poses[i].orientation.x;
-            bc_message.path[i].orientation.y = trajectory.poses[i].orientation.y;
-            bc_message.path[i].orientation.z = trajectory.poses[i].orientation.z;
-            bc_message.path[i].orientation.w = trajectory.poses[i].orientation.w;
-        }
-    }
-}
-
 /// @brief Constructor
 ///
 /// @param[in]  node_name       Node name
@@ -152,6 +50,8 @@ bool BCNode::init()
 
     signature_check_interval_ = get_gated_param(*this, "signature_check_interval_s", 1.0, 0.0, 60.0);
 
+    max_age_ = get_gated_param(*this, "broadcast_trajectory_max_age_s", 0.5, 0.0, 60.0);
+
     const std::string trajectory_topic_in{
         get_param(*this, "input_trajectory_topic", std::string("navigation/trajectory"))};
 
@@ -163,16 +63,16 @@ bool BCNode::init()
     switch (serialization_method_)
     {
     case 1:
-        message_min_size_ = message_max_size_ = 614;
+        message_min_size_ = message_max_size_ = BroadcastMessage<double>::size(); // 614;
         break;
     case 2:
-        message_min_size_ = message_max_size_ = 334;
+        message_min_size_ = message_max_size_ = BroadcastMessage<float>::size(); // 334;
         break;
     case 3:
-        message_min_size_ = message_max_size_ = 194;
+        message_min_size_ = message_max_size_ = BroadcastMessage<int16_t>::size(); // 194;
         break;
     case 4:
-        message_min_size_ = message_max_size_ = 99;
+        message_min_size_ = message_max_size_ = BroadcastMessageMin::size(); // 99;
         break;
     default:
         message_min_size_ = 610;
@@ -210,7 +110,7 @@ bool BCNode::init()
                                            receiver_interval,
                                            std::bind(&BCNode::receive_broadcast_message, this));
 
-    // signature check timer
+    // Signature check timer
     if (signature_check_interval_ > 0.0)
     {
         signature_check_timer_ = rclcpp::create_timer(this,
@@ -301,7 +201,8 @@ bool BCNode::init()
                 "- immediate_broadcast: %s\n"
                 "- signature_check_interval: %5.2f s\n"
                 "- verify_all_signatures: %s\n"
-                "- serialization_method: %d\n",
+                "- serialization_method: %d\n"
+                "- BroadcastMessage size: [%ld .. %ld] Bytes",
                 trajectory_topic_in.c_str(),
                 trajectory_topic_out.c_str(),
                 broadcast_ip_.c_str(),
@@ -310,7 +211,9 @@ bool BCNode::init()
                 immediate_broadcast_ ? "true" : "false",
                 signature_check_interval_,
                 verify_all_signatures_ ? "true" : "false",
-                serialization_method_);
+                serialization_method_,
+                message_min_size_,
+                message_max_size_);
 
     RCLCPP_INFO(get_logger(), "Node initialized");
 
@@ -371,30 +274,30 @@ std::string BCNode::get_serialized_trajectory()
     if (serialization_method_ == 1)
     {
         // generate message
-        BroadcastMessage bc_message;
+        BroadcastMessage<double> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
-            fill_bc_message(bc_message, trajectory_);
+            bc_message.from_rosmsg(trajectory_);
         }
         return bc_message.serialize();
     }
     if (serialization_method_ == 2)
     {
         // generate message
-        BroadcastMessage32 bc_message;
+        BroadcastMessage<float> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
-            fill_bc_message(bc_message, trajectory_);
+            bc_message.from_rosmsg(trajectory_);
         }
         return bc_message.serialize();
     }
     if (serialization_method_ == 3)
     {
         // generate message
-        BroadcastMessage16 bc_message;
+        BroadcastMessage<int16_t> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
-            fill_bc_message(bc_message, trajectory_, true);
+            bc_message.from_rosmsg(trajectory_);
         }
         return bc_message.serialize();
     }
@@ -467,21 +370,21 @@ fognav_msgs::msg::Trajectory::UniquePtr BCNode::deserialize_trajectory(const std
     auto trajectory = std::make_unique<fognav_msgs::msg::Trajectory>();
     if (serialization_method_ == 1)
     {
-        BroadcastMessage received;
+        BroadcastMessage<double> received;
         received.deserialize(msg);
-        fill_trajectory(trajectory, received);
+        received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 2)
     {
-        BroadcastMessage32 received;
+        BroadcastMessage<float> received;
         received.deserialize(msg);
-        fill_trajectory(trajectory, received);
+        received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 3)
     {
-        BroadcastMessage16 received;
+        BroadcastMessage<int16_t> received;
         received.deserialize(msg);
-        fill_trajectory(trajectory, received, true);
+        received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 4)
     {
@@ -532,7 +435,7 @@ bool BCNode::send_udp(const std::string& msg)
 {
     if (!socket_ || !send_addr_.sin_addr.s_addr || !send_addr_.sin_port)
     {
-        RCLCPP_ERROR(get_logger(), "UDP sending failed - no socket iniziaized");
+        RCLCPP_ERROR(get_logger(), "UDP sending failed - no socket initialized");
         return false;
     }
     if (msg.empty())
@@ -558,7 +461,10 @@ void BCNode::broadcast_udp_message()
     const double age{(now() - trajectory_.header.stamp).seconds()};
     if (age > max_age_)
     {
-        RCLCPP_WARN(get_logger(), "Timestamp too old for publishing: %.2f s", age);
+        RCLCPP_WARN(get_logger(),
+                    "Timestamp too old for publishing: %.2f s (Limit: %.2f s)",
+                    age,
+                    max_age_);
         return;
     }
     else

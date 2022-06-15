@@ -75,7 +75,7 @@ private:
     size_t message_min_size_{614};
     size_t message_max_size_{614};
 
-    ///@ingroup storage, containers
+    /// @ingroup storage, containers
 
     // Container for observed senders book keeping
     // std::set<std::string> observed_senders_{};

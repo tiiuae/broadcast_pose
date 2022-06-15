@@ -4,6 +4,7 @@
 #include <cstring>
 #include <string>
 namespace bc_node {
+
 struct GeoPoint // 3*8 bytes = 24 Bytes = 192 bits
 {
     double lat;
@@ -21,9 +22,10 @@ struct GeoPoint // 3*8 bytes = 24 Bytes = 192 bits
     void deserialize(const std::string& message)
     {
         memcpy(&lat, &message[0], sizeof(lat));
-        memcpy(&lon, &message[8], sizeof(lon));
-        memcpy(&alt, &message[16], sizeof(alt));
+        memcpy(&lon, &message[sizeof(lat)], sizeof(lon));
+        memcpy(&alt, &message[sizeof(lat) + sizeof(lon)], sizeof(alt));
     }
+    static size_t size() { return sizeof(lat) + sizeof(lon) + sizeof(alt); }
 };
 
 struct GeoPointMin // 2*4 + 2 = 10 Bytes = 80 bits
@@ -43,38 +45,18 @@ struct GeoPointMin // 2*4 + 2 = 10 Bytes = 80 bits
     void deserialize(const std::string& message)
     {
         memcpy(&lat, &message[0], sizeof(lat));
-        memcpy(&lon, &message[4], sizeof(lon));
-        memcpy(&alt, &message[8], sizeof(alt));
+        memcpy(&lon, &message[sizeof(lat)], sizeof(lon));
+        memcpy(&alt, &message[sizeof(lat) + sizeof(lon)], sizeof(alt));
     }
+    static size_t size() { return sizeof(lat) + sizeof(lon) + sizeof(alt); }
 };
 
-struct Point // 3*8 bytes = 24 Bytes = 192 bits
+template<typename T>
+struct Point
 {
-    double x;
-    double y;
-    double z;
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append((const char*) &x, sizeof(double));
-        serialized.append((const char*) &y, sizeof(double));
-        serialized.append((const char*) &z, sizeof(double));
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        memcpy(&x, &message[0], sizeof(double));
-        memcpy(&y, &message[8], sizeof(double));
-        memcpy(&z, &message[16], sizeof(double));
-    }
-};
-
-struct Point32 // 3*4 bytes = 12 Bytes = 96 bits
-{
-    float x;
-    float y;
-    float z;
+    T x;
+    T y;
+    T z;
 
     std::string serialize() const
     {
@@ -87,112 +69,44 @@ struct Point32 // 3*4 bytes = 12 Bytes = 96 bits
     void deserialize(const std::string& message)
     {
         memcpy(&x, &message[0], sizeof(x));
-        memcpy(&y, &message[4], sizeof(y));
-        memcpy(&z, &message[8], sizeof(z));
+        memcpy(&y, &message[sizeof(x)], sizeof(y));
+        memcpy(&z, &message[sizeof(x) + sizeof(y)], sizeof(z));
     }
+    static size_t size() { return sizeof(x) + sizeof(y) + sizeof(z); }
 };
 
-struct Point16 // 3*2 bytes = 6 Bytes = 48 bits
+template<typename T>
+struct Quaternion
 {
-    int16_t x;
-    int16_t y;
-    int16_t z;
+    T x;
+    T y;
+    T z;
+    T w;
 
     std::string serialize() const
     {
         std::string serialized;
-        serialized.append((const char*) &x, sizeof(x));
-        serialized.append((const char*) &y, sizeof(y));
-        serialized.append((const char*) &z, sizeof(z));
+        serialized.append((const char*) &x, sizeof(T));
+        serialized.append((const char*) &y, sizeof(T));
+        serialized.append((const char*) &z, sizeof(T));
+        serialized.append((const char*) &w, sizeof(T));
         return serialized;
     }
     void deserialize(const std::string& message)
     {
         memcpy(&x, &message[0], sizeof(x));
-        memcpy(&y, &message[2], sizeof(y));
-        memcpy(&z, &message[4], sizeof(z));
+        memcpy(&y, &message[sizeof(x)], sizeof(y));
+        memcpy(&z, &message[sizeof(x) + sizeof(y)], sizeof(z));
+        memcpy(&w, &message[sizeof(x) + sizeof(y) + sizeof(z)], sizeof(w));
     }
+    static size_t size() { return sizeof(x) + sizeof(y) + sizeof(z) + sizeof(w); }
 };
 
-struct Quaternion // 4*8 bytes = 32 Bytes = 256 bits
+template<typename T>
+struct Pose
 {
-    double x;
-    double y;
-    double z;
-    double w;
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append((const char*) &x, sizeof(double));
-        serialized.append((const char*) &y, sizeof(double));
-        serialized.append((const char*) &z, sizeof(double));
-        serialized.append((const char*) &w, sizeof(double));
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        memcpy(&x, &message[0], sizeof(double));
-        memcpy(&y, &message[8], sizeof(double));
-        memcpy(&z, &message[16], sizeof(double));
-        memcpy(&w, &message[24], sizeof(double));
-    }
-};
-
-struct Quaternion32 // 4*4 bytes = 16 Bytes = 128 bits
-{
-    float x;
-    float y;
-    float z;
-    float w;
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append((const char*) &x, sizeof(x));
-        serialized.append((const char*) &y, sizeof(y));
-        serialized.append((const char*) &z, sizeof(z));
-        serialized.append((const char*) &w, sizeof(w));
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        memcpy(&x, &message[0], sizeof(x));
-        memcpy(&y, &message[4], sizeof(y));
-        memcpy(&z, &message[8], sizeof(z));
-        memcpy(&w, &message[12], sizeof(w));
-    }
-};
-
-struct Quaternion16 // 4*2 bytes = 8 Bytes = 128 bits
-{
-    int16_t x;
-    int16_t y;
-    int16_t z;
-    int16_t w;
-
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append((const char*) &x, sizeof(x));
-        serialized.append((const char*) &y, sizeof(y));
-        serialized.append((const char*) &z, sizeof(z));
-        serialized.append((const char*) &w, sizeof(w));
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        memcpy(&x, &message[0], sizeof(x));
-        memcpy(&y, &message[2], sizeof(y));
-        memcpy(&z, &message[4], sizeof(z));
-        memcpy(&w, &message[6], sizeof(w));
-    }
-};
-
-struct Pose // 56 Bytes = 448 bits
-{
-    Point point;
-    Quaternion orientation;
+    Point<T> point;
+    Quaternion<T> orientation;
     std::string serialize() const
     {
         std::string serialized;
@@ -203,54 +117,20 @@ struct Pose // 56 Bytes = 448 bits
     void deserialize(const std::string& message)
     {
         point.deserialize(message);
-        orientation.deserialize(message.substr(24));
+        orientation.deserialize(message.substr(Point<T>::size()));
     }
+    static size_t size() { return Point<T>::size() + Quaternion<T>::size(); }
 };
 
-struct Pose32 //
-{
-    Point32 point;
-    Quaternion32 orientation;
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append(point.serialize());
-        serialized.append(orientation.serialize());
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        point.deserialize(message);
-        orientation.deserialize(message.substr(12));
-    }
-};
-
-struct Pose16 //
-{
-    Point16 point;
-    Quaternion16 orientation;
-    std::string serialize() const
-    {
-        std::string serialized;
-        serialized.append(point.serialize());
-        serialized.append(orientation.serialize());
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        point.deserialize(message);
-        orientation.deserialize(message.substr(6));
-    }
-};
-
-struct BroadcastMessage // 20 + 2 + 4 + 4 + 24 + 10*56 = 614 B
+template<typename PoseT>
+struct BroadcastMessage
 {
     char droneid[20];
     uint16_t priority;
     uint32_t sec;
     uint32_t nsec;
     bc_node::GeoPoint datum;
-    bc_node::Pose path[10];
+    bc_node::Pose<PoseT> path[10];
 
     std::string serialize() const
     {
@@ -276,101 +156,119 @@ struct BroadcastMessage // 20 + 2 + 4 + 4 + 24 + 10*56 = 614 B
             droneid[j] = message[j];
         }
         // memcpy(&droneid, &message, 20);
-        memcpy(&priority, &message[20], sizeof(priority));
-        memcpy(&sec, &message[22], sizeof(sec));
-        memcpy(&nsec, &message[26], sizeof(nsec));
-        datum.deserialize(message.substr(30));
+        size_t offset = 20;
+        memcpy(&priority, &message[offset], sizeof(priority));
+        offset += sizeof(priority);
+        memcpy(&sec, &message[offset], sizeof(sec));
+        offset += sizeof(sec);
+        memcpy(&nsec, &message[offset], sizeof(nsec));
+        offset += sizeof(nsec);
+        datum.deserialize(message.substr(offset));
+        offset += GeoPoint::size();
         for (int i = 0; i < 10; ++i)
         {
-            path[i].deserialize(message.substr(54 + 56 * i));
+            path[i].deserialize(message.substr(offset + Pose<PoseT>::size() * i));
         }
     }
-};
-
-struct BroadcastMessage32 // 20 + 2 + 4 + 4 + 24 + 10*28 = 334 B
-{
-    char droneid[20];
-    uint16_t priority;
-    uint32_t sec;
-    uint32_t nsec;
-    bc_node::GeoPoint datum;
-    bc_node::Pose32 path[10];
-
-    std::string serialize() const
+    static size_t size()
     {
-        std::string serialized;
-        for (int k = 0; k < 20; k++)
-        {
-            serialized += droneid[k];
-        }
-        serialized.append((const char*) &priority, sizeof(priority));
-        serialized.append((const char*) &sec, sizeof(sec));
-        serialized.append((const char*) &nsec, sizeof(nsec));
-        serialized.append(datum.serialize());
-        for (int i = 0; i < 10; ++i)
-        {
-            serialized.append(path[i].serialize());
-        }
-        return serialized;
+        return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPoint::size()
+               + 10 * Pose<PoseT>::size();
     }
-    void deserialize(const std::string& message)
+    void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory)
     {
-        for (int j = 0; j < 20; j++)
+        trajectory->droneid = std::string(droneid);
+        trajectory->priority = priority;
+        trajectory->header.stamp.sec = sec;
+        trajectory->header.stamp.nanosec = nsec;
+        /*if (fixedpoint_datum)
         {
-            droneid[j] = message[j];
+            trajectory->datum.latitude = 0.000001 * static_cast<double>(received.datum.lat);
+            trajectory->datum.longitude = 0.000001 * static_cast<double>(received.datum.lon);
+            trajectory->datum.altitude = 0.1 * static_cast<double>(received.datum.alt);
         }
-        // memcpy(&droneid, &message, 20);
-        memcpy(&priority, &message[20], sizeof(priority));
-        memcpy(&sec, &message[22], sizeof(sec));
-        memcpy(&nsec, &message[26], sizeof(nsec));
-        datum.deserialize(message.substr(30));
-        for (int i = 0; i < 10; ++i)
+        else
+        {*/
+        trajectory->datum.latitude = datum.lat;
+        trajectory->datum.longitude = datum.lon;
+        trajectory->datum.altitude = datum.alt;
+        //}
+        if (std::is_integral<PoseT>::value)
         {
-            path[i].deserialize(message.substr(54 + 28 * i));
+            for (int i = 0; i < 10; i++)
+            {
+                trajectory->poses[i].position.x = 0.1 * static_cast<double>(path[i].point.x);
+                trajectory->poses[i].position.y = 0.1 * static_cast<double>(path[i].point.y);
+                trajectory->poses[i].position.z = 0.1 * static_cast<double>(path[i].point.z);
+
+                trajectory->poses[i].orientation.x = 0.0001
+                                                     * static_cast<double>(path[i].orientation.x);
+                trajectory->poses[i].orientation.y = 0.0001
+                                                     * static_cast<double>(path[i].orientation.y);
+                trajectory->poses[i].orientation.z = 0.0001
+                                                     * static_cast<double>(path[i].orientation.z);
+                trajectory->poses[i].orientation.w = 0.0001
+                                                     * static_cast<double>(path[i].orientation.w);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                trajectory->poses[i].position.x = path[i].point.x;
+                trajectory->poses[i].position.y = path[i].point.y;
+                trajectory->poses[i].position.z = path[i].point.z;
+                trajectory->poses[i].orientation.x = path[i].orientation.x;
+                trajectory->poses[i].orientation.y = path[i].orientation.y;
+                trajectory->poses[i].orientation.z = path[i].orientation.z;
+                trajectory->poses[i].orientation.w = path[i].orientation.w;
+            }
         }
     }
-};
 
-struct BroadcastMessage16 // 20 + 2 + 4 + 4 + 24 + 10*14 = 194 B
-{
-    char droneid[20];
-    uint16_t priority;
-    uint32_t sec;
-    uint32_t nsec;
-    bc_node::GeoPoint datum;
-    bc_node::Pose16 path[10];
+    void from_rosmsg(fognav_msgs::msg::Trajectory& trajectory)
+    {
+        strncpy(droneid, trajectory.droneid.c_str(), 20);
+        priority = trajectory.priority;
+        sec = trajectory.header.stamp.sec;
+        nsec = trajectory.header.stamp.nanosec;
+        datum.lat = trajectory.datum.latitude;
+        datum.lon = trajectory.datum.longitude;
+        datum.alt = trajectory.datum.altitude;
+        if (std::is_integral<PoseT>::value)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                path[i].point.x = static_cast<PoseT>(
+                    std::round(10. * trajectory.poses[i].position.x));
+                path[i].point.y = static_cast<PoseT>(
+                    std::round(10. * trajectory.poses[i].position.y));
+                path[i].point.z = static_cast<PoseT>(
+                    std::round(10. * trajectory.poses[i].position.z));
 
-    std::string serialize() const
-    {
-        std::string serialized;
-        for (int k = 0; k < 20; k++)
-        {
-            serialized += droneid[k];
+                path[i].orientation.x = static_cast<PoseT>(
+                    std::round(10000. * trajectory.poses[i].orientation.x));
+                path[i].orientation.y = static_cast<PoseT>(
+                    std::round(10000. * trajectory.poses[i].orientation.y));
+                path[i].orientation.z = static_cast<PoseT>(
+                    std::round(10000. * trajectory.poses[i].orientation.z));
+                path[i].orientation.w = static_cast<PoseT>(
+                    std::round(10000. * trajectory.poses[i].orientation.w));
+            }
         }
-        serialized.append((const char*) &priority, sizeof(priority));
-        serialized.append((const char*) &sec, sizeof(sec));
-        serialized.append((const char*) &nsec, sizeof(nsec));
-        serialized.append(datum.serialize());
-        for (int i = 0; i < 10; ++i)
+        else
         {
-            serialized.append(path[i].serialize());
-        }
-        return serialized;
-    }
-    void deserialize(const std::string& message)
-    {
-        for (int j = 0; j < 20; j++)
-        {
-            droneid[j] = message[j];
-        }
-        // memcpy(&droneid, &message, 20);
-        memcpy(&priority, &message[20], sizeof(priority));
-        memcpy(&sec, &message[22], sizeof(sec));
-        memcpy(&nsec, &message[26], sizeof(nsec));
-        datum.deserialize(message.substr(30));
-        for (int i = 0; i < 10; ++i)
-        {
-            path[i].deserialize(message.substr(54 + 14 * i));
+            for (int i = 0; i < 10; i++)
+            {
+                path[i].point.x = trajectory.poses[i].position.x;
+                path[i].point.y = trajectory.poses[i].position.y;
+                path[i].point.z = trajectory.poses[i].position.z;
+
+                path[i].orientation.x = trajectory.poses[i].orientation.x;
+                path[i].orientation.y = trajectory.poses[i].orientation.y;
+                path[i].orientation.z = trajectory.poses[i].orientation.z;
+                path[i].orientation.w = trajectory.poses[i].orientation.w;
+            }
         }
     }
 };
@@ -381,7 +279,7 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
     uint32_t sec;
     uint32_t nsec;
     bc_node::GeoPointMin datum;
-    bc_node::Point16 path[10];
+    bc_node::Point<int16_t> path[10];
     uint8_t priority;
 
     std::string serialize() const
@@ -414,8 +312,13 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
         datum.deserialize(message.substr(30));
         for (int i = 0; i < 10; ++i)
         {
-            path[i].deserialize(message.substr(39 + 6 * i));
+            path[i].deserialize(message.substr(39 + Point<int16_t>::size() * i));
         }
+    }
+    static size_t size()
+    {
+        return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPointMin::size()
+               + 10 * Point<int16_t>::size();
     }
 };
 
