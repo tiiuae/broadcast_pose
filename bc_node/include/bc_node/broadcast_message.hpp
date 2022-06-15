@@ -1,8 +1,12 @@
 #ifndef BC_NODE__BROADCAST_MESSAGE_HPP_
 #define BC_NODE__BROADCAST_MESSAGE_HPP_
 
+#include <cmath>
 #include <cstring>
+#include <fognav_msgs/msg/trajectory.hpp>
 #include <string>
+#include <type_traits>
+
 namespace bc_node {
 
 struct GeoPoint // 3*8 bytes = 24 Bytes = 192 bits
@@ -30,9 +34,9 @@ struct GeoPoint // 3*8 bytes = 24 Bytes = 192 bits
 
 struct GeoPointMin // 2*4 + 2 = 10 Bytes = 80 bits
 {
-    int32_t lat; // lat deg * 1 000 000
-    int32_t lon; // lon deg * 1 000 000
-    int16_t alt; // alt_m * 10 -> 0.1 m accuracy
+    std::int32_t lat; // lat deg * 1 000 000
+    std::int32_t lon; // lon deg * 1 000 000
+    std::int16_t alt; // alt_m * 10 -> 0.1 m accuracy
 
     std::string serialize() const
     {
@@ -126,9 +130,9 @@ template<typename PoseT>
 struct BroadcastMessage
 {
     char droneid[20];
-    uint16_t priority;
-    uint32_t sec;
-    uint32_t nsec;
+    std::uint16_t priority;
+    std::uint32_t sec;
+    std::uint32_t nsec;
     bc_node::GeoPoint datum;
     bc_node::Pose<PoseT> path[10];
 
@@ -175,7 +179,7 @@ struct BroadcastMessage
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPoint::size()
                + 10 * Pose<PoseT>::size();
     }
-    void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory)
+    void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
     {
         trajectory->droneid = std::string(droneid);
         trajectory->priority = priority;
@@ -226,7 +230,7 @@ struct BroadcastMessage
         }
     }
 
-    void from_rosmsg(fognav_msgs::msg::Trajectory& trajectory)
+    void from_rosmsg(const fognav_msgs::msg::Trajectory& trajectory)
     {
         strncpy(droneid, trajectory.droneid.c_str(), 20);
         priority = trajectory.priority;
@@ -276,11 +280,11 @@ struct BroadcastMessage
 struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
 {
     char droneid[20];
-    uint32_t sec;
-    uint32_t nsec;
+    std::uint32_t sec;
+    std::uint32_t nsec;
     bc_node::GeoPointMin datum;
-    bc_node::Point<int16_t> path[10];
-    uint8_t priority;
+    bc_node::Point<std::int16_t> path[10];
+    std::uint8_t priority;
 
     std::string serialize() const
     {
@@ -312,13 +316,51 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
         datum.deserialize(message.substr(30));
         for (int i = 0; i < 10; ++i)
         {
-            path[i].deserialize(message.substr(39 + Point<int16_t>::size() * i));
+            path[i].deserialize(message.substr(39 + Point<std::int16_t>::size() * i));
         }
     }
     static size_t size()
     {
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPointMin::size()
-               + 10 * Point<int16_t>::size();
+               + 10 * Point<std::int16_t>::size();
+    }
+    void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
+    {
+        trajectory->droneid = std::string(droneid);
+
+        trajectory->priority = priority;
+
+        trajectory->header.stamp.sec = sec;
+        trajectory->header.stamp.nanosec = nsec;
+
+        trajectory->datum.latitude = 0.000001 * static_cast<double>(datum.lat);
+        trajectory->datum.longitude = 0.000001 * static_cast<double>(datum.lon);
+        trajectory->datum.altitude = 0.1 * static_cast<double>(datum.alt);
+        for (int i = 0; i < 10; i++)
+        {
+            trajectory->poses[i].position.x = 0.1 * static_cast<double>(path[i].x);
+            trajectory->poses[i].position.y = 0.1 * static_cast<double>(path[i].y);
+            trajectory->poses[i].position.z = 0.1 * static_cast<double>(path[i].z);
+        }
+    }
+    void from_rosmsg(const fognav_msgs::msg::Trajectory& trajectory)
+    {
+        strncpy(droneid, trajectory.droneid.c_str(), 20);
+
+        priority = trajectory.priority;
+        sec = trajectory.header.stamp.sec;
+        nsec = trajectory.header.stamp.nanosec;
+
+        datum.lat = static_cast<std::int32_t>(std::round(trajectory.datum.latitude * 1000000.));
+        datum.lon = static_cast<std::int32_t>(std::round(trajectory.datum.longitude * 1000000.));
+        datum.alt = static_cast<std::int16_t>(trajectory.datum.altitude * 10.);
+
+        for (int i = 0; i < 10; i++)
+        {
+            path[i].x = static_cast<std::int16_t>(std::round(10. * trajectory.poses[i].position.x));
+            path[i].y = static_cast<std::int16_t>(std::round(10. * trajectory.poses[i].position.y));
+            path[i].z = static_cast<std::int16_t>(std::round(10. * trajectory.poses[i].position.z));
+        }
     }
 };
 
