@@ -15,8 +15,12 @@ bc_node:
     # Publishing trajectories received from other drones
     output_trajectory_topic: "bc_node/trajectories"
     # Serialization selection
-    serialization_method: 3 # 0: Use ROS/DDS message serialization for input message
-                            # 1: BroadcasMessage 614 Bytes
-                            # 2: BroadcastMessage32 334 Bytes
-                            # 3: BroadcastMessage16 194 Bytes
-                            # 4: BroadcastMessageMin 99 Bytes
+    serialization_method: 7 # 0: Use ROS/DDS message serialization for input message
+                            # 1: BroadcastMessagePose<double> 614 Bytes
+                            # 2: BroadcastMessagePose<float> 334 Bytes
+                            # 3: BroadcastMessagePose<int16> 194 Bytes
+                            # 4: BroadcastMessagePoint<double> 294 Bytes
+                            # 5: BroadcastMessagePoint<float> 174 Bytes
+                            # 6: BroadcastMessagePoint<int16> 114 Bytes
+                            # 7: BroadcastMessageMin 99 Bytes
+                          

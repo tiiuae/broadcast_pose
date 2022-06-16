@@ -63,15 +63,24 @@ bool BCNode::init()
     switch (serialization_method_)
     {
     case 1:
-        message_min_size_ = message_max_size_ = BroadcastMessage<double>::size(); // 614;
+        message_min_size_ = message_max_size_ = BroadcastMessagePose<double>::size(); // 614;
         break;
     case 2:
-        message_min_size_ = message_max_size_ = BroadcastMessage<float>::size(); // 334;
+        message_min_size_ = message_max_size_ = BroadcastMessagePose<float>::size(); // 334;
         break;
     case 3:
-        message_min_size_ = message_max_size_ = BroadcastMessage<std::int16_t>::size(); // 194;
+        message_min_size_ = message_max_size_ = BroadcastMessagePose<std::int16_t>::size(); // 194;
         break;
     case 4:
+        message_min_size_ = message_max_size_ = BroadcastMessagePoint<double>::size(); // 294;
+        break;
+    case 5:
+        message_min_size_ = message_max_size_ = BroadcastMessagePoint<float>::size(); // 174;
+        break;
+    case 6:
+        message_min_size_ = message_max_size_ = BroadcastMessagePoint<std::int16_t>::size(); // 114;
+        break;
+    case 7:
         message_min_size_ = message_max_size_ = BroadcastMessageMin::size(); // 99;
         break;
     default:
@@ -273,8 +282,7 @@ std::string BCNode::get_serialized_trajectory()
 {
     if (serialization_method_ == 1)
     {
-        // generate message
-        BroadcastMessage<double> bc_message;
+        BroadcastMessagePose<double> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
             bc_message.from_rosmsg(trajectory_);
@@ -283,8 +291,7 @@ std::string BCNode::get_serialized_trajectory()
     }
     if (serialization_method_ == 2)
     {
-        // generate message
-        BroadcastMessage<float> bc_message;
+        BroadcastMessagePose<float> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
             bc_message.from_rosmsg(trajectory_);
@@ -293,8 +300,7 @@ std::string BCNode::get_serialized_trajectory()
     }
     if (serialization_method_ == 3)
     {
-        // generate message
-        BroadcastMessage<std::int16_t> bc_message;
+        BroadcastMessagePose<std::int16_t> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
             bc_message.from_rosmsg(trajectory_);
@@ -303,26 +309,38 @@ std::string BCNode::get_serialized_trajectory()
     }
     if (serialization_method_ == 4)
     {
-        // generate message
-        BroadcastMessageMin bc_message;
-        bool oversized_prio_warn{false};
+        BroadcastMessagePoint<double> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
             bc_message.from_rosmsg(trajectory_);
-            if (trajectory_.priority > std::numeric_limits<decltype(bc_message.priority)>::max())
-            {
-                bc_message.priority = std::numeric_limits<decltype(bc_message.priority)>::max();
-                oversized_prio_warn = true;
-            }
         }
-        if (oversized_prio_warn)
+        return bc_message.serialize();
+    }
+    if (serialization_method_ == 5)
+    {
+        BroadcastMessagePoint<float> bc_message;
         {
-            RCLCPP_WARN_ONCE(get_logger(),
-                             "Priority %d exceeds broadcast limit %d",
-                             trajectory_.priority,
-                             std::numeric_limits<decltype(bc_message.priority)>::max());
+            const std::scoped_lock<std::mutex> _(trajectory_access_);
+            bc_message.from_rosmsg(trajectory_);
         }
-        // serialize message
+        return bc_message.serialize();
+    }
+    if (serialization_method_ == 6)
+    {
+        BroadcastMessagePoint<std::int16_t> bc_message;
+        {
+            const std::scoped_lock<std::mutex> _(trajectory_access_);
+            bc_message.from_rosmsg(trajectory_);
+        }
+        return bc_message.serialize();
+    }
+    if (serialization_method_ == 7)
+    {
+        BroadcastMessageMin bc_message;
+        {
+            const std::scoped_lock<std::mutex> _(trajectory_access_);
+            bc_message.from_rosmsg(trajectory_);
+        }
         return bc_message.serialize();
     }
 
@@ -346,26 +364,49 @@ std::string BCNode::get_serialized_trajectory()
 /// @return Deserialized trajectory (or nullptr)
 fognav_msgs::msg::Trajectory::UniquePtr BCNode::deserialize_trajectory(const std::string& msg)
 {
+    if (msg.size() < message_min_size_)
+    {
+        RCLCPP_ERROR(get_logger(), "Failed to deserialize serialized message. Too little data");
+        return {};
+    }
     auto trajectory = std::make_unique<fognav_msgs::msg::Trajectory>();
     if (serialization_method_ == 1)
     {
-        BroadcastMessage<double> received;
+        BroadcastMessagePose<double> received;
         received.deserialize(msg);
         received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 2)
     {
-        BroadcastMessage<float> received;
+        BroadcastMessagePose<float> received;
         received.deserialize(msg);
         received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 3)
     {
-        BroadcastMessage<std::int16_t> received;
+        BroadcastMessagePose<std::int16_t> received;
         received.deserialize(msg);
         received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 4)
+    {
+        BroadcastMessagePoint<double> received;
+        received.deserialize(msg);
+        received.to_rosmsg(trajectory);
+    }
+    else if (serialization_method_ == 5)
+    {
+        BroadcastMessagePoint<float> received;
+        received.deserialize(msg);
+        received.to_rosmsg(trajectory);
+    }
+    else if (serialization_method_ == 6)
+    {
+        BroadcastMessagePoint<std::int16_t> received;
+        received.deserialize(msg);
+        received.to_rosmsg(trajectory);
+    }
+    else if (serialization_method_ == 7)
     {
         BroadcastMessageMin received;
         received.deserialize(msg);
@@ -373,11 +414,6 @@ fognav_msgs::msg::Trajectory::UniquePtr BCNode::deserialize_trajectory(const std
     }
     else
     {
-        if (msg.size() < message_min_size_)
-        {
-            RCLCPP_ERROR(get_logger(), "Failed to deserialize serialized message. Too little data");
-            return {};
-        }
         memcpy(serialized_in_msg_.buffer, msg.data(), msg.size() - kSignatureSize);
         serialized_in_msg_.buffer_length = msg.size() - kSignatureSize;
         auto ret = rmw_deserialize(&serialized_in_msg_, trajectory_ts_, trajectory.get());
@@ -437,7 +473,6 @@ void BCNode::broadcast_udp_message()
 
     // serialize
     std::string message{get_serialized_trajectory()};
-    // message = bc_message.serialize();
     RCLCPP_DEBUG(get_logger(), "Serialized message length: %ld Bytes", message.size());
 
     // sign
@@ -512,7 +547,6 @@ void BCNode::receive_broadcast_message()
             RCLCPP_WARN(get_logger(),
                         "Received unexpected message size (%ld) from IP: %s",
                         received_str.size(),
-                        //                        expected_udp_packet_size_,
                         inet_ntoa(recv_addr_.sin_addr));
             continue;
         }
@@ -545,7 +579,7 @@ void BCNode::receive_broadcast_message()
             {
                 RCLCPP_WARN_STREAM(get_logger(),
                                    "Signature verification failed: " << trajectory->droneid);
-                // Do some security signalling...
+                /// @todo Do some security signalling...
                 continue;
             }
             observed_senders_times_[trajectory->droneid] = now();

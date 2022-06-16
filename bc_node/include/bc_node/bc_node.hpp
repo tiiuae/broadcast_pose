@@ -40,7 +40,7 @@ private:
     std::string get_serialized_trajectory();
     fognav_msgs::msg::Trajectory::UniquePtr deserialize_trajectory(const std::string& msg);
 
-    /// @ingroup signing
+    /// @ingroup Signing
     std::string sign(const std::string& msg) { return msg; };
     bool verify_signature(const std::string& /*msg*/, std::string /*droneid*/) { return true; }
 
@@ -67,8 +67,6 @@ private:
     bool immediate_broadcast_{false};
     double signature_check_interval_{1.0};
     bool verify_all_signatures_{false};
-    uint16_t right_of_way_{100};
-    std::string device_id_{"undefined"};
     double max_age_{0.5};
     int serialization_method_{0};
 
