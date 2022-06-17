@@ -30,9 +30,9 @@ private:
     msg.datum.longitude = 64.54332;
     msg.datum.altitude = 123.311;
     for (int i = 0; i < 10; ++i) {
-      msg.poses[i].position.x = i + 0.2 * i;
-      msg.poses[i].position.y = -i + 0.1;
-      msg.poses[i].position.z = 0.03 * i;
+      msg.path[i].x = i + 0.2 * i;
+      msg.path[i].y = -i + 0.1;
+      msg.path[i].z = 0.03 * i;
     }
     RCLCPP_INFO(get_logger(), "Publishing: '%ld'", ++count_);
     RCLCPP_INFO_STREAM(get_logger(),
@@ -43,40 +43,29 @@ private:
                            << "\n - datum lat:" << msg.datum.latitude
                            << "\n -datum lon:" << msg.datum.longitude
                            << "\n -datum alt:" << msg.datum.altitude
-                           << "\n -Poses:");
+                           << "\n -Path:");
     // for (int i = 0; i < 10; ++i) {
     int i = 6;
-    RCLCPP_INFO_STREAM(
-        get_logger(), i << "\nPostion:\n-- x: " << msg.poses[i].position.x
-                        << "\n --y: " << msg.poses[i].position.y
-                        << "\n --z: " << msg.poses[i].position.z
-                        << "\nOrientation\n --x: " << msg.poses[i].orientation.x
-                        << "\n --y: " << msg.poses[i].orientation.y
-                        << "\n --z: " << msg.poses[i].orientation.z
-                        << "\n --w: " << msg.poses[i].orientation.w);
+    RCLCPP_INFO_STREAM(get_logger(), i << "\nPostion:\n-- x: " << msg.path[i].x
+                                       << "\n --y: " << msg.path[i].y
+                                       << "\n --z: " << msg.path[i].z);
     //}
     publisher_->publish(msg);
   }
   void trajectory_callback(const fognav_msgs::msg::Trajectory::SharedPtr msg) {
-    RCLCPP_INFO_STREAM(get_logger(),
-                       "Received message:\n -droneid:"
-                           << msg->droneid << "\n -priority:" << msg->priority
-                           << "\n - sec:" << msg->header.stamp.sec
-                           << "\n -nanosec:" << msg->header.stamp.nanosec
-                           << "\n - datum lat:" << msg->datum.latitude
-                           << "\n -datum lon:" << msg->datum.longitude
-                           << "\n -datum alt:" << msg->datum.altitude
-                           << "\n -Poses:");
+    RCLCPP_INFO_STREAM(
+        get_logger(),
+        "Received message:\n -droneid:"
+            << msg->droneid << " (" << msg->droneid.length() << ")\n -priority:"
+            << msg->priority << "\n - sec:" << msg->header.stamp.sec
+            << "\n -nanosec:" << msg->header.stamp.nanosec << "\n - datum lat:"
+            << msg->datum.latitude << "\n -datum lon:" << msg->datum.longitude
+            << "\n -datum alt:" << msg->datum.altitude << "\n -Path:");
     // for (int i = 0; i < 10; ++i) {
     int i = 6;
-    RCLCPP_INFO_STREAM(get_logger(),
-                       i << "\nPostion:\n-- x: " << msg->poses[i].position.x
-                         << "\n --y: " << msg->poses[i].position.y << "\n --z: "
-                         << msg->poses[i].position.z << "\nOrientation\n --x: "
-                         << msg->poses[i].orientation.x
-                         << "\n --y: " << msg->poses[i].orientation.y
-                         << "\n --z: " << msg->poses[i].orientation.z
-                         << "\n --w: " << msg->poses[i].orientation.w);
+    RCLCPP_INFO_STREAM(get_logger(), i << "\nPostion:\n-- x: " << msg->path[i].x
+                                       << "\n --y: " << msg->path[i].y
+                                       << "\n --z: " << msg->path[i].z);
     //}
   }
   rclcpp::TimerBase::SharedPtr timer_;

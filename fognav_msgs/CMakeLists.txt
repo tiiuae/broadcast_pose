@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(fognav_msgs)
 
 find_package(ament_cmake REQUIRED)
+
 # find_package(fognav_common REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -12,30 +13,31 @@ find_package(action_msgs REQUIRED)
 find_package(geographic_msgs REQUIRED)
 
 # fognav_package()
-
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-message(STATUS "Setting build type to Release as none was specified.")
-set(CMAKE_BUILD_TYPE "Release" CACHE
+  message(STATUS "Setting build type to Release as none was specified.")
+  set(CMAKE_BUILD_TYPE "Release" CACHE
     STRING "Choose the type of build." FORCE)
-# Set the possible values of build type for cmake-gui
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-  "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+
+  # Set the possible values of build type for cmake-gui
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
-set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wdeprecated -fPIC)
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wdeprecated -fPIC)
 endif()
 
 option(COVERAGE_ENABLED "Enable code coverage" FALSE)
+
 if(COVERAGE_ENABLED)
-add_compile_options(--coverage)
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
+  add_compile_options(--coverage)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
 endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -51,6 +53,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ControlInterfaceDiagnostics.msg"
   "msg/NavigationDiagnostics.msg"
   "msg/Trajectory.msg"
+  "msg/TrajectoryPose.msg"
   "srv/GetCostmap.srv"
   "srv/IsPathValid.srv"
   "srv/ResamplePath.srv"

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <fognav_msgs/msg/trajectory.hpp>
+#include <fognav_msgs/msg/trajectory_pose.hpp>
 #include <string>
 #include <type_traits>
 
@@ -178,7 +179,7 @@ struct BroadcastMessagePose
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPoint::size()
                + 10 * Pose<T>::size();
     }
-    void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
+    void to_rosmsg(fognav_msgs::msg::TrajectoryPose::UniquePtr& trajectory) const
     {
         trajectory->droneid = std::string(droneid);
         trajectory->priority = priority;
@@ -220,7 +221,7 @@ struct BroadcastMessagePose
         }
     }
 
-    void from_rosmsg(const fognav_msgs::msg::Trajectory& trajectory)
+    void from_rosmsg(const fognav_msgs::msg::TrajectoryPose& trajectory)
     {
         strncpy(droneid, trajectory.droneid.c_str(), 20);
         priority = trajectory.priority;
@@ -319,7 +320,7 @@ struct BroadcastMessagePoint
     }
     void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
     {
-        trajectory->droneid = std::string(droneid);
+        trajectory->droneid = std::string(droneid, 20);
         trajectory->priority = priority;
         trajectory->header.stamp.sec = sec;
         trajectory->header.stamp.nanosec = nsec;
@@ -330,18 +331,18 @@ struct BroadcastMessagePoint
         {
             for (int i = 0; i < 10; i++)
             {
-                trajectory->poses[i].position.x = 0.1 * static_cast<double>(path[i].x);
-                trajectory->poses[i].position.y = 0.1 * static_cast<double>(path[i].y);
-                trajectory->poses[i].position.z = 0.1 * static_cast<double>(path[i].z);
+                trajectory->path[i].x = 0.1 * static_cast<double>(path[i].x);
+                trajectory->path[i].y = 0.1 * static_cast<double>(path[i].y);
+                trajectory->path[i].z = 0.1 * static_cast<double>(path[i].z);
             }
         }
         else
         {
             for (int i = 0; i < 10; i++)
             {
-                trajectory->poses[i].position.x = path[i].x;
-                trajectory->poses[i].position.y = path[i].y;
-                trajectory->poses[i].position.z = path[i].z;
+                trajectory->path[i].x = path[i].x;
+                trajectory->path[i].y = path[i].y;
+                trajectory->path[i].z = path[i].z;
             }
         }
     }
@@ -360,18 +361,18 @@ struct BroadcastMessagePoint
         {
             for (int i = 0; i < 10; i++)
             {
-                path[i].x = static_cast<T>(std::round(10. * trajectory.poses[i].position.x));
-                path[i].y = static_cast<T>(std::round(10. * trajectory.poses[i].position.y));
-                path[i].z = static_cast<T>(std::round(10. * trajectory.poses[i].position.z));
+                path[i].x = static_cast<T>(std::round(10. * trajectory.path[i].x));
+                path[i].y = static_cast<T>(std::round(10. * trajectory.path[i].y));
+                path[i].z = static_cast<T>(std::round(10. * trajectory.path[i].z));
             }
         }
         else
         {
             for (int i = 0; i < 10; i++)
             {
-                path[i].x = trajectory.poses[i].position.x;
-                path[i].y = trajectory.poses[i].position.y;
-                path[i].z = trajectory.poses[i].position.z;
+                path[i].x = trajectory.path[i].x;
+                path[i].y = trajectory.path[i].y;
+                path[i].z = trajectory.path[i].z;
             }
         }
     }
@@ -439,9 +440,9 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
         trajectory->datum.altitude = 0.1 * static_cast<double>(datum.alt);
         for (int i = 0; i < 10; i++)
         {
-            trajectory->poses[i].position.x = 0.1 * static_cast<double>(path[i].x);
-            trajectory->poses[i].position.y = 0.1 * static_cast<double>(path[i].y);
-            trajectory->poses[i].position.z = 0.1 * static_cast<double>(path[i].z);
+            trajectory->path[i].x = 0.1 * static_cast<double>(path[i].x);
+            trajectory->path[i].y = 0.1 * static_cast<double>(path[i].y);
+            trajectory->path[i].z = 0.1 * static_cast<double>(path[i].z);
         }
     }
 
@@ -456,9 +457,9 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
         datum.alt = static_cast<std::int16_t>(trajectory.datum.altitude * 10.);
         for (int i = 0; i < 10; i++)
         {
-            path[i].x = static_cast<std::int16_t>(std::round(10. * trajectory.poses[i].position.x));
-            path[i].y = static_cast<std::int16_t>(std::round(10. * trajectory.poses[i].position.y));
-            path[i].z = static_cast<std::int16_t>(std::round(10. * trajectory.poses[i].position.z));
+            path[i].x = static_cast<std::int16_t>(std::round(10. * trajectory.path[i].x));
+            path[i].y = static_cast<std::int16_t>(std::round(10. * trajectory.path[i].y));
+            path[i].z = static_cast<std::int16_t>(std::round(10. * trajectory.path[i].z));
         }
     }
 };

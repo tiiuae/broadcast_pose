@@ -63,29 +63,20 @@ bool BCNode::init()
     switch (serialization_method_)
     {
     case 1:
-        message_min_size_ = message_max_size_ = BroadcastMessagePose<double>::size(); // 614;
-        break;
-    case 2:
-        message_min_size_ = message_max_size_ = BroadcastMessagePose<float>::size(); // 334;
-        break;
-    case 3:
-        message_min_size_ = message_max_size_ = BroadcastMessagePose<std::int16_t>::size(); // 194;
-        break;
-    case 4:
         message_min_size_ = message_max_size_ = BroadcastMessagePoint<double>::size(); // 294;
         break;
-    case 5:
+    case 2:
         message_min_size_ = message_max_size_ = BroadcastMessagePoint<float>::size(); // 174;
         break;
-    case 6:
+    case 3:
         message_min_size_ = message_max_size_ = BroadcastMessagePoint<std::int16_t>::size(); // 114;
         break;
-    case 7:
+    case 4:
         message_min_size_ = message_max_size_ = BroadcastMessageMin::size(); // 99;
         break;
     default:
-        message_min_size_ = 610;
-        message_max_size_ = 636;
+        message_min_size_ = 292;
+        message_max_size_ = 316;
         break;
     }
 
@@ -173,7 +164,7 @@ bool BCNode::init()
         return false;
     }
 
-    // typesupport for Serilizing trajectory messages
+    // typesupport for Serializing trajectory messages
     trajectory_ts_
         = rosidl_typesupport_cpp::get_message_type_support_handle<fognav_msgs::msg::Trajectory>();
 
@@ -282,7 +273,7 @@ std::string BCNode::get_serialized_trajectory()
 {
     if (serialization_method_ == 1)
     {
-        BroadcastMessagePose<double> bc_message;
+        BroadcastMessagePoint<double> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
             bc_message.from_rosmsg(trajectory_);
@@ -291,7 +282,7 @@ std::string BCNode::get_serialized_trajectory()
     }
     if (serialization_method_ == 2)
     {
-        BroadcastMessagePose<float> bc_message;
+        BroadcastMessagePoint<float> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
             bc_message.from_rosmsg(trajectory_);
@@ -300,33 +291,6 @@ std::string BCNode::get_serialized_trajectory()
     }
     if (serialization_method_ == 3)
     {
-        BroadcastMessagePose<std::int16_t> bc_message;
-        {
-            const std::scoped_lock<std::mutex> _(trajectory_access_);
-            bc_message.from_rosmsg(trajectory_);
-        }
-        return bc_message.serialize();
-    }
-    if (serialization_method_ == 4)
-    {
-        BroadcastMessagePoint<double> bc_message;
-        {
-            const std::scoped_lock<std::mutex> _(trajectory_access_);
-            bc_message.from_rosmsg(trajectory_);
-        }
-        return bc_message.serialize();
-    }
-    if (serialization_method_ == 5)
-    {
-        BroadcastMessagePoint<float> bc_message;
-        {
-            const std::scoped_lock<std::mutex> _(trajectory_access_);
-            bc_message.from_rosmsg(trajectory_);
-        }
-        return bc_message.serialize();
-    }
-    if (serialization_method_ == 6)
-    {
         BroadcastMessagePoint<std::int16_t> bc_message;
         {
             const std::scoped_lock<std::mutex> _(trajectory_access_);
@@ -334,7 +298,7 @@ std::string BCNode::get_serialized_trajectory()
         }
         return bc_message.serialize();
     }
-    if (serialization_method_ == 7)
+    if (serialization_method_ == 4)
     {
         BroadcastMessageMin bc_message;
         {
@@ -372,41 +336,23 @@ fognav_msgs::msg::Trajectory::UniquePtr BCNode::deserialize_trajectory(const std
     auto trajectory = std::make_unique<fognav_msgs::msg::Trajectory>();
     if (serialization_method_ == 1)
     {
-        BroadcastMessagePose<double> received;
+        BroadcastMessagePoint<double> received;
         received.deserialize(msg);
         received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 2)
     {
-        BroadcastMessagePose<float> received;
+        BroadcastMessagePoint<float> received;
         received.deserialize(msg);
         received.to_rosmsg(trajectory);
     }
     else if (serialization_method_ == 3)
     {
-        BroadcastMessagePose<std::int16_t> received;
-        received.deserialize(msg);
-        received.to_rosmsg(trajectory);
-    }
-    else if (serialization_method_ == 4)
-    {
-        BroadcastMessagePoint<double> received;
-        received.deserialize(msg);
-        received.to_rosmsg(trajectory);
-    }
-    else if (serialization_method_ == 5)
-    {
-        BroadcastMessagePoint<float> received;
-        received.deserialize(msg);
-        received.to_rosmsg(trajectory);
-    }
-    else if (serialization_method_ == 6)
-    {
         BroadcastMessagePoint<std::int16_t> received;
         received.deserialize(msg);
         received.to_rosmsg(trajectory);
     }
-    else if (serialization_method_ == 7)
+    else if (serialization_method_ == 4)
     {
         BroadcastMessageMin received;
         received.deserialize(msg);
