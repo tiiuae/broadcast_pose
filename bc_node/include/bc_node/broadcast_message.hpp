@@ -31,6 +31,7 @@ struct GeoPoint // 3*8 bytes = 24 Bytes = 192 bits
         memcpy(&alt, &message[sizeof(lat) + sizeof(lon)], sizeof(alt));
     }
     static size_t size() { return sizeof(lat) + sizeof(lon) + sizeof(alt); }
+    size_t length() const { return sizeof(lat) + sizeof(lon) + sizeof(alt); }
 };
 
 struct GeoPointMin // 2*4 + 2 = 10 Bytes = 80 bits
@@ -54,6 +55,7 @@ struct GeoPointMin // 2*4 + 2 = 10 Bytes = 80 bits
         memcpy(&alt, &message[sizeof(lat) + sizeof(lon)], sizeof(alt));
     }
     static size_t size() { return sizeof(lat) + sizeof(lon) + sizeof(alt); }
+    size_t length() const { return sizeof(lat) + sizeof(lon) + sizeof(alt); }
 };
 
 template<typename T>
@@ -78,6 +80,7 @@ struct Point
         memcpy(&z, &message[sizeof(x) + sizeof(y)], sizeof(z));
     }
     static size_t size() { return sizeof(x) + sizeof(y) + sizeof(z); }
+    size_t length() const { return sizeof(x) + sizeof(y) + sizeof(z); }
 };
 
 template<typename T>
@@ -105,6 +108,7 @@ struct Quaternion
         memcpy(&w, &message[sizeof(x) + sizeof(y) + sizeof(z)], sizeof(w));
     }
     static size_t size() { return sizeof(x) + sizeof(y) + sizeof(z) + sizeof(w); }
+    size_t length() const { return sizeof(x) + sizeof(y) + sizeof(z) + sizeof(w); }
 };
 
 template<typename T>
@@ -125,6 +129,7 @@ struct Pose
         orientation.deserialize(message.substr(Point<T>::size()));
     }
     static size_t size() { return Point<T>::size() + Quaternion<T>::size(); }
+    size_t length() const { return point.length() + orientation.length(); }
 };
 
 template<typename T>
@@ -178,6 +183,11 @@ struct BroadcastMessagePose
     {
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPoint::size()
                + 10 * Pose<T>::size();
+    }
+    size_t length() const
+    {
+        return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + datum.length()
+               + 10 * path[0].length();
     }
     void to_rosmsg(fognav_msgs::msg::TrajectoryPose::UniquePtr& trajectory) const
     {
@@ -318,6 +328,11 @@ struct BroadcastMessagePoint
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPoint::size()
                + 10 * Point<T>::size();
     }
+    size_t length() const
+    {
+        return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + datum.length()
+               + 10 * path[0].length();
+    }
     void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
     {
         trajectory->droneid = std::string(droneid, 20);
@@ -428,6 +443,11 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
     {
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + GeoPointMin::size()
                + 10 * Point<std::int16_t>::size();
+    }
+    size_t length() const
+    {
+        return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + datum.length()
+               + 10 * path[0].length();
     }
     void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
     {

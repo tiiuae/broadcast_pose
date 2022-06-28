@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(fognav_msgs REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 
 include_directories(include)
 
@@ -18,7 +19,8 @@ add_library(${PROJECT_NAME}_lib
 ament_target_dependencies(${PROJECT_NAME}_lib
   rclcpp
   fognav_msgs
-  )
+  builtin_interfaces
+)
 
 add_executable(${PROJECT_NAME}
   src/bc_node_main.cpp)
@@ -27,12 +29,13 @@ target_link_libraries(${PROJECT_NAME}
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files
-  #set(ament_cmake_copyright_FOUND TRUE)
+  # set(ament_cmake_copyright_FOUND TRUE)
   # the following line skips cpplint (only works in a git repo)
   # uncomment the line when this package is not in a git repo
-  #set(ament_cmake_cpplint_FOUND TRUE)
+  # set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
 
@@ -40,7 +43,7 @@ install(TARGETS
   bc_node
   DESTINATION lib/${PROJECT_NAME})
 
-  install(DIRECTORY
+install(DIRECTORY
   params
   launch
   DESTINATION share/${PROJECT_NAME}/

@@ -2,6 +2,8 @@
 #define BC_NODE__BC_NODE_HPP_
 
 #include <arpa/inet.h>
+#include <bc_node/broadcast_message.hpp>
+#include <builtin_interfaces/msg/time.hpp>
 #include <fognav_msgs/msg/trajectory.hpp>
 #include <rclcpp/rclcpp.hpp>
 //#include <memory>
@@ -11,7 +13,48 @@
 namespace bc_node {
 
 constexpr size_t kUdpBufferLength{1024};
-constexpr size_t kSignatureSize{0};
+constexpr size_t kSignatureSize{4};
+constexpr size_t kSerializedTrajectoryMinSize{292};
+constexpr size_t kSerializedTrajectoryMaxSize{316};
+constexpr size_t kMaxAllowedMessages{100};
+
+struct HeaderV0
+{
+    std::uint8_t version : 3;           // 000 = this, 111 = reserved
+    std::uint8_t ros_serialization : 1; // 0 = BroadcastMessage, 1 = ROS serialization
+    std::uint8_t message_type : 2;      // BroadcastMessage:
+                                        //  00: <double>
+                                        //  01: <float>
+                                        //  10: <std::int16_t>
+                                        //  11: BroadcastMessagemin
+                                        // ROS serialization:
+                                        //  00: Trajectory.msg
+                                        //  01: undefined (free)
+                                        //  10: undefined (free)
+                                        //  11: undefined (free)
+    std::uint8_t signature : 1;         // 1: Signed, 0: No signature
+    std::uint8_t encryption : 1;        // 1: encrypted, 0: No signature
+    char to_char() const
+    {
+        char c;
+        c = version;
+        c += ros_serialization << 3;
+        c += message_type << 4;
+        c += signature << 6;
+        c += encryption << 7;
+        return c;
+    }
+    std::string to_string() const { return std::string(1, to_char()); }
+    void from_char(const char c)
+    {
+        version = c & 0b00000111;
+        ros_serialization = (c & 0b00001000) >> 3;
+        message_type = (c & 0b00110000) >> 4;
+        signature = (c & 0b01000000) >> 6;
+        encryption = (c & 0b10000000) >> 7;
+    }
+    void from_string(const std::string& msg) { from_char(msg.at(0)); }
+};
 
 class BCNode : public rclcpp::Node
 {
@@ -38,12 +81,26 @@ private:
 
     /// @ingroup Serialization functions
     std::string get_serialized_trajectory();
-    fognav_msgs::msg::Trajectory::UniquePtr deserialize_trajectory(const std::string& msg);
+    bool deserialize_trajectory(const std::string& msg,
+                                fognav_msgs::msg::Trajectory::UniquePtr& trajectory);
+    template<typename T>
+    bool get_trajectory_from_msg(const std::string& msg,
+                                 fognav_msgs::msg::Trajectory::UniquePtr& trajectory);
+    bool get_trajectory_from_msg(const std::string& msg,
+                                 fognav_msgs::msg::Trajectory::UniquePtr& trajectory);
+    template<typename T>
+    std::string get_msg_from_trajectory();
+    std::string get_msg_from_trajectory();
 
     /// @ingroup Signing
-    std::string sign(const std::string& msg) { return msg; };
-    bool verify_signature(const std::string& /*msg*/, std::string /*droneid*/) { return true; }
+    std::string sign(const std::string& msg);
+    bool verify_signature(const std::string& msg, std::string /*droneid*/);
 
+    /// @ingroup Encryption
+    std::string encrypt(const std::string& msg) { return msg; };
+    std::string decrypt(const std::string& msg) { return msg; };
+
+    /// @ingroup validation functions
     bool check_ip(const std::string& /*droneid*/, const struct sockaddr_in /*recv_addr*/)
     {
         return true;
@@ -66,12 +123,12 @@ private:
     // double broadcast_interval_{0.1};
     bool immediate_broadcast_{false};
     double signature_check_interval_{1.0};
+    bool sign_messages_{true};
+    bool encrypt_messages_{false};
     bool verify_all_signatures_{false};
     double max_age_{0.5};
+    std::string drone_id_{};
     int serialization_method_{0};
-
-    size_t message_min_size_{614};
-    size_t message_max_size_{614};
 
     /// @ingroup storage, containers
 
@@ -81,6 +138,7 @@ private:
     std::map<std::string, rclcpp::Time> observed_senders_times_{};
     // Container to count messages per drone - e.g. detect message flooding
     std::map<std::string, uint16_t> sender_count_{};
+    std::map<in_addr_t, uint16_t> ip_addr_count_{};
 
     /// Previously received own trajectory
     fognav_msgs::msg::Trajectory trajectory_;
