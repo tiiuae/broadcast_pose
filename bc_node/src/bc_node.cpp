@@ -2,6 +2,7 @@
 #include "bc_node/broadcast_message.hpp"
 #include "bc_node/param_checker.hpp"
 #include "bc_node/validation.hpp"
+#include <bitset>
 #include <errno.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -52,6 +53,7 @@ bool BCNode::init()
     sign_messages_ = get_param(*this, "sign_messages", true);
     encrypt_messages_ = get_param(*this, "encrypt_messages", false);
     signature_check_interval_ = get_gated_param(*this, "signature_check_interval_s", 1.0, 0.0, 60.0);
+    verify_all_signatures_ = (signature_check_interval_ <= 0.0);
 
     max_age_ = get_gated_param(*this, "broadcast_trajectory_max_age_s", 0.5, 0.0, 60.0);
 
@@ -63,7 +65,7 @@ bool BCNode::init()
 
     drone_id_ = get_param(*this, "drone_id", std::string("Testi_drone_1"));
     serialization_method_ = get_param(*this, "serialization_method", 0);
-
+    print_received_message_ = get_param(*this, "print_received_message", true);
     size_t message_min_size{0};
     size_t message_max_size{0};
     switch (serialization_method_)
@@ -115,22 +117,11 @@ bool BCNode::init()
                                            get_clock(),
                                            receiver_interval,
                                            std::bind(&BCNode::receive_broadcast_message, this));
-
-    // Signature check timer
-    if (signature_check_interval_ > 0.0)
-    {
-        signature_check_timer_ = rclcpp::create_timer(this,
-                                                      get_clock(),
-                                                      std::chrono::duration<double>(
-                                                          signature_check_interval_),
-                                                      std::bind(&BCNode::signature_clear_callback,
-                                                                this));
-        verify_all_signatures_ = false;
-    }
-    else
-    {
-        verify_all_signatures_ = true;
-    }
+    /// Periodic clearing of some counters
+    periodic_clear_timer_ = rclcpp::create_timer(this,
+                                                 get_clock(),
+                                                 std::chrono::duration<double>(1.0),
+                                                 std::bind(&BCNode::periodic_clear_callback, this));
 
     // Open UDP socket
     if ((socket_ = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
@@ -199,25 +190,36 @@ bool BCNode::init()
     // Print out node configuration summary
     RCLCPP_INFO(get_logger(),
                 "\n[ Node summary ]\n"
-                "- input_trajectory_topic: %s\n"
-                "- output_trajectory_topic: %s\n"
-                "- broadcast_ip_adress: %s\n"
-                "- broadcast_port: %d\n"
-                "- broadcast_interval: %5.2f s\n"
-                "- immediate_broadcast: %s\n"
-                "- signature_check_interval: %5.2f s\n"
-                "- verify_all_signatures: %s\n"
-                "- serialization_method: %d\n"
-                "- BroadcastMessage size: [%ld .. %ld] Bytes",
+                "- input_trajectory_topic:\t %s\n"
+                "- output_trajectory_topic:\t %s\n"
+                "- broadcast_ip_adress:\t %s\n"
+                "- broadcast_port:\t\t %d\n"
+                "- broadcast_interval:\t %.2f s\n"
+                "- immediate_broadcast:\t %s\n"
+                "- message_max_age:\t\t %.2f s\n"
+                "- sign_messages:\t\t %s\n"
+                "- encrypt_messages:\t\t %s\n"
+                "- print_received_message:\t%s\n"
+                "- signature_check_interval:\t %.2f s\n"
+                "- verify_all_signatures:\t %s\n"
+                "- serialization_method:\t %d\n"
+                "- drone_id:\t\t\t %s\n"
+                "- BroadcastMessage size:\t [%ld .. %ld] Bytes",
+
                 trajectory_topic_in.c_str(),
                 trajectory_topic_out.c_str(),
                 broadcast_ip_.c_str(),
                 broadcast_port_,
                 broadcast_interval.count(),
                 immediate_broadcast_ ? "true" : "false",
+                max_age_,
+                sign_messages_ ? "true" : "false",
+                encrypt_messages_ ? "true" : "false",
+                print_received_message_ ? "true" : "false",
                 signature_check_interval_,
                 verify_all_signatures_ ? "true" : "false",
                 serialization_method_,
+                drone_id_.c_str(),
                 message_min_size,
                 message_max_size);
 
@@ -231,6 +233,16 @@ bool BCNode::init()
 /// @param[in] msg  Trajectory containing next few seconds of own flight path
 void BCNode::trajectory_callback(const fognav_msgs::msg::Trajectory::SharedPtr msg)
 {
+    if (!validate_geopoint(*this, msg->datum)) //! validate_trajectory(*this, msg))
+    {
+        return;
+    }
+    if (!validate_droneid(*this, msg->droneid, drone_id_))
+    {
+        /// @todo Do some security signalling...
+        return;
+    }
+    else
     {
         const std::scoped_lock<std::mutex> _(trajectory_access_);
         trajectory_ = *msg;
@@ -248,30 +260,12 @@ void BCNode::broadcast_timer_callback()
     broadcast_udp_message();
 }
 
-/// @brief Timer callback function for clearing out the verified senders
+/// @brief Timer callback function for clearing the counters
 ///
-void BCNode::signature_clear_callback()
+void BCNode::periodic_clear_callback()
 {
-    // clear all at once
-    // observed_senders_.clear();
-
-    // Clear outdated senders
-    const rclcpp::Time now_ts = now();
-
-    for (auto it = observed_senders_times_.cbegin(); it != observed_senders_times_.cend();)
-    {
-        if ((now_ts - it->second).seconds() > signature_check_interval_)
-        {
-            it = observed_senders_times_.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
     // Clear ip address counters
     ip_addr_count_.clear();
-    /// @todo: Do we need to adjust t
 }
 
 /// @brief Function to serialize Trajectory message to UDP packet string
@@ -452,16 +446,12 @@ bool BCNode::send_udp(const std::string& msg)
 void BCNode::broadcast_udp_message()
 {
     // Check whether we have fresh enough timestamp
-    if (!validate_age(*this, trajectory_.header.stamp, max_age_))
+    if (!validate_stamp(*this, trajectory_.header.stamp, max_age_))
     {
         /// @todo Do some security signalling...
         return;
     }
-    if (!validate_droneid(*this, trajectory_.droneid, drone_id_))
-    {
-        /// @todo Do some security signalling...
-        return;
-    }
+
     HeaderV0 header;
     header.version = 0;
     header.ros_serialization = 0;
@@ -584,18 +574,14 @@ void BCNode::receive_broadcast_message()
 
         // Parse header
         HeaderV0 header;
-        header.from_string(received_str);
-
-        // Print header
-        RCLCPP_INFO(
-            get_logger(),
-            "Header:\n- Version: %d\n- ROS Serialization: %s\n- Message Type: %d\n- Signed: "
-            "%s\n- Encrypted: %s",
-            header.version,
-            (header.ros_serialization ? "True" : "False"),
-            header.message_type,
-            (header.signature ? "True" : "False"),
-            (header.encryption ? "True" : "False"));
+        if (!header.from_string(received_str))
+        {
+            continue;
+        }
+        if (print_received_message_)
+        {
+            print_header(header);
+        }
 
         // Check version
         if (header.version > 0)
@@ -604,7 +590,7 @@ void BCNode::receive_broadcast_message()
                          "Received unsupported message version %d from IP:%s",
                          header.version,
                          inet_ntoa(recv_addr_.sin_addr));
-            return;
+            continue;
         }
 
         // Remove header from message
@@ -657,22 +643,34 @@ void BCNode::receive_broadcast_message()
                 }
             }
         }
-        else
+        else // Deserialize ROS message from UDP packet
         {
-            // Deserialize trajectory from UDP packet
-            if (deserialize_trajectory(msg, trajectory))
+            if (header.message_type == 0) // Serialize Trajectory.msg
             {
-                deserialize_successful = true;
+                if (deserialize_trajectory(msg, trajectory))
+                {
+                    deserialize_successful = true;
+                }
+            }
+            else
+            {
+                RCLCPP_ERROR(get_logger(), "Unknown message type.");
             }
         }
         if (!trajectory || !deserialize_successful)
         {
-            RCLCPP_ERROR(get_logger(), "failed to deserialize serialized message. received nullptr");
+            RCLCPP_ERROR(get_logger(), "Failed to deserialize serialized message.");
             continue;
         }
 
+        if (print_received_message_
+            && (!header.ros_serialization || (header.ros_serialization && header.message_type == 0)))
+        {
+            print_trajectory(trajectory, header.message_type);
+        }
+
         // Check message age
-        if (!validate_age(*this, trajectory->header.stamp, max_age_))
+        if (!validate_stamp(*this, trajectory->header.stamp, max_age_))
         {
             /// @todo Do some security signalling...
             continue;
@@ -692,7 +690,13 @@ void BCNode::receive_broadcast_message()
         }
 
         // Verify signature
-        if (header.signature && !observed_senders_times_.count(trajectory->droneid))
+        // header has signature AND (all sigantures need to be verified OR drone has not been observed
+        // earlier OR (drone has been observed earlier AND there is enough time from last check))
+        if (header.signature
+            && (verify_all_signatures_ || !observed_senders_times_.count(trajectory->droneid)
+                || (observed_senders_times_.count(trajectory->droneid)
+                    && ((now() - observed_senders_times_[trajectory->droneid]).seconds()
+                        > signature_check_interval_))))
         {
             if (!verify_signature(signed_msg, trajectory->droneid))
             {
@@ -702,12 +706,106 @@ void BCNode::receive_broadcast_message()
         }
         else
         {
-            RCLCPP_DEBUG(get_logger(), "Signature verification skipped.");
+            RCLCPP_INFO(get_logger(), "Signature verification skipped.");
         }
 
         // Relay message forward
         pub_->publish(std::move(trajectory));
     }
+}
+
+/// @brief Print header
+///
+/// ┌Enc┬Sig┬MsgType┬Ros┬──Version──┐
+/// │ 0 │ 1 │ 0   0 │ 1 │ 0   0   0 │
+/// └───┴───┴───┴───┴───┴───┴───┴───┘
+///
+/// @param[in] header   Header to be printed
+void BCNode::print_header(const HeaderV0& header)
+{
+    RCLCPP_INFO_STREAM(get_logger(),
+                       "Header:\n ┌Enc┬Sig┬MsgType┬Ros┬──Version──┐\n │ "
+                           << (header.encryption ? "1" : "0") << " │ "
+                           << (header.signature ? "1" : "0") << " │ "
+                           << (header.message_type >> 1 & 0b1) << "   "
+                           << (header.message_type & 0b1) << " │ "
+                           << (header.ros_serialization ? "1" : "0") << " │ "
+                           << (header.version >> 2 & 0b1) << "   " << (header.version >> 1 & 0b1)
+                           << "   " << (header.version & 0b1) << " │ "
+                           << std::bitset<8>(header.to_char())
+                           << "\n └───┴───┴───┴───┴───┴───┴───┴───┘");
+}
+
+/// @brief Print received message
+///
+/// ┌───────DroneID──────┬Priority┬Stamp.sec─┬Stamp.nsec┬─Dat.lat.─┬─Dat.lon.─┬─Dat.alt.─┐
+/// │12345678901234567890│  32678 │2147483647│2147483647│-79.123456│-179.12345│ 10000.00 │
+/// └────────20/20───────┴────2───┴─────4────┴─────4────┴─────8────┴─────8────┴─────8────┘
+/// Path
+/// ┌───x0───┬───x1───┬───x2───┬───x3───┬───x4───┬───x5───┬───x6───┬───x7───┬───x8───┬───x9───┐
+/// │-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│
+/// ├───y0───┼───y1───┼───y2───┼───y3───┼───y4───┼───y5───┼───y6───┼───y7───┼───y8───┼───y9───┤
+/// │-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│
+/// ├───z0───┼───z1───┼───z2───┼───z3───┼───z4───┼───z5───┼───z6───┼───z7───┼───z8───┼───z9───┤
+/// │-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│-1234.50│
+/// └────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┘
+///
+/// @param[in] trajectory   Trajectory message what is formatted and printed out
+/// @param[in] message_type Original received message type
+void BCNode::print_trajectory(const fognav_msgs::msg::Trajectory::UniquePtr& trajectory,
+                              const int message_type)
+{
+    char paths[1500];
+    int paths_len{0};
+    paths_len += sprintf(paths + paths_len, "%s path\n┌", trajectory->droneid.c_str());
+    for (int i = 0; i < 10; ++i)
+    {
+        paths_len += sprintf(paths + paths_len, "───x%d───%s", i, (i < 9 ? "┬" : "┐\n"));
+    }
+    for (int i = 0; i < 10; ++i)
+    {
+        paths_len += sprintf(paths + paths_len, "|% 8.1f", trajectory->path[i].x);
+    }
+    paths_len += sprintf(paths + paths_len, "|\n├");
+    for (int i = 0; i < 10; ++i)
+    {
+        paths_len += sprintf(paths + paths_len, "───y%d───%s", i, (i < 9 ? "┼" : "┤\n"));
+    }
+    for (int i = 0; i < 10; ++i)
+    {
+        paths_len += sprintf(paths + paths_len, "|% 8.1f", trajectory->path[i].y);
+    }
+    paths_len += sprintf(paths + paths_len, "|\n├");
+    for (int i = 0; i < 10; ++i)
+    {
+        paths_len += sprintf(paths + paths_len, "───z%d───%s", i, (i < 9 ? "┼" : "┤\n"));
+    }
+    for (int i = 0; i < 10; ++i)
+    {
+        paths_len += sprintf(paths + paths_len, "|% 8.1f", trajectory->path[i].z);
+    }
+    paths_len += sprintf(paths + paths_len,
+                         "|\n└────────┴────────┴────────┴────────┴────────┴────────┴────────┴─────"
+                         "───┴────────┴────────┘");
+
+    std::string sizes_str;
+    sizes_str = (message_type == 3
+                     ? "1───┴─────4────┴─────4────┴─────4────┴─────4────┴─────2────┘\n"
+                     : "2───┴─────4────┴─────4────┴─────8────┴─────8────┴─────8────┘\n");
+    RCLCPP_INFO_STREAM(get_logger(),
+                       "\n "
+                       "┌───────DroneID──────┬Priority┬Stamp.sec─┬Stamp.nsec┬─Dat.lat."
+                       "─┬─Dat.lon.─┬─Dat.alt.─┐"
+                       "\n │"
+                           << std::setw(20) << std::left << trajectory->droneid << "│"
+                           << std::setw(6) << std::right << trajectory->priority << "  │"
+                           << std::setw(10) << trajectory->header.stamp.sec << "│" << std::setw(10)
+                           << trajectory->header.stamp.nanosec << "│" << std::setw(10)
+                           << trajectory->datum.latitude << "│" << std::setw(10)
+                           << trajectory->datum.longitude << "|" << std::setw(10)
+                           << trajectory->datum.altitude << "│\n └────────" << std::setw(2)
+                           << trajectory->droneid.length() << "/20───────┴────" << sizes_str
+                           << paths);
 }
 
 /// @brief Function to sign message
@@ -731,7 +829,7 @@ std::string BCNode::sign(const std::string& msg)
 /// @param[in]  msg Signed message to be verified
 /// @param[in]  droneid DroneID of claimed sender
 /// @return true if signature was considered valid
-bool BCNode::verify_signature(const std::string& msg, std::string droneid)
+bool BCNode::verify_signature(const std::string& msg, const std::string& droneid)
 {
     if (msg.substr(msg.length() - 4) == "ABCD")
     {

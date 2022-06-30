@@ -1,26 +1,35 @@
 bc_node:
   ros__parameters:
     # Broadcast configuration
+    #========================
     broadcast_ip_address: 192.168.1.255
     broadcast_port: 3911
     broadcast_interval_s: 0.1 # 0.0 send trajectory immediately when received from navigation
     broadcast_trajectory_max_age_s: 0.5 # [0.0 ... 60.0]
-    
     sign_messages: true
     encrypt_messages: false
-    drone_id: "Testi_drone_1"
-
-    # How often the received signature is verified (<= 0.0 all signatures verified)
-    signature_check_interval_s: 1.0
-    # How often receive buffers are checked
-    receive_interval_s: 0.1
-    # Own drone trajectory for next few seconds to be broadcasted out
-    input_trajectory_topic: "navigation/trajectory"
-    # Publishing trajectories received from other drones
-    output_trajectory_topic: "bc_node/trajectories"
-    # Serialization selection
+    # Serialization method selection
     serialization_method: 2 # 0: BroadcastMessagePoint<double> 294 Bytes
                             # 1: BroadcastMessagePoint<float> 174 Bytes
                             # 2: BroadcastMessagePoint<int16> 114 Bytes
                             # 3: BroadcastMessageMin 99 Bytes
                             # 4: Use ROS/DDS message serialization for input message
+
+    # Own drone id (used for validity check)
+    drone_id: "Testi_drone_1"
+
+    # Receiver configuration
+    #=======================
+    # Should the received broadcast messages from other drones to be logged
+    print_received_message: true
+    # How often the received signature is verified (<= 0.0 all signatures verified)
+    signature_check_interval_s: 1.0
+    # How often receive buffers are checked
+    receive_interval_s: 0.1
+
+    # ROS topics configuration   
+    #=========================
+    # Own drone trajectory for next few seconds to be broadcasted out
+    input_trajectory_topic: "navigation/trajectory"
+    # Publishing trajectories received from other drones
+    output_trajectory_topic: "bc_node/trajectories"

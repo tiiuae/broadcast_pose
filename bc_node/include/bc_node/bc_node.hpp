@@ -53,7 +53,15 @@ struct HeaderV0
         signature = (c & 0b01000000) >> 6;
         encryption = (c & 0b10000000) >> 7;
     }
-    void from_string(const std::string& msg) { from_char(msg.at(0)); }
+    bool from_string(const std::string& msg)
+    {
+        if (msg.length() < 1)
+        {
+            return false;
+        }
+        from_char(msg.at(0));
+        return true;
+    }
 };
 
 class BCNode : public rclcpp::Node
@@ -69,7 +77,7 @@ private:
 
     /// @ingroup Timer callbacks
     void broadcast_timer_callback();
-    void signature_clear_callback();
+    void periodic_clear_callback();
 
     /// @ingroup Message sending
     void broadcast_udp_message();
@@ -78,6 +86,9 @@ private:
     /// @ingroup Message receiving
     void receive_broadcast_message();
     std::string receive_udp();
+    void print_header(const HeaderV0& header);
+    void print_trajectory(const fognav_msgs::msg::Trajectory::UniquePtr& trajectory,
+                          int message_type);
 
     /// @ingroup Serialization functions
     std::string get_serialized_trajectory();
@@ -94,7 +105,7 @@ private:
 
     /// @ingroup Signing
     std::string sign(const std::string& msg);
-    bool verify_signature(const std::string& msg, std::string /*droneid*/);
+    bool verify_signature(const std::string& msg, const std::string& droneid);
 
     /// @ingroup Encryption
     std::string encrypt(const std::string& msg) { return msg; };
@@ -114,7 +125,7 @@ private:
 
     /// @ingroup Timers
     rclcpp::TimerBase::SharedPtr broadcast_timer_;
-    rclcpp::TimerBase::SharedPtr signature_check_timer_;
+    rclcpp::TimerBase::SharedPtr periodic_clear_timer_;
     rclcpp::TimerBase::SharedPtr receiver_timer_;
 
     /// @ingroup Parameters
@@ -126,6 +137,7 @@ private:
     bool sign_messages_{true};
     bool encrypt_messages_{false};
     bool verify_all_signatures_{false};
+    bool print_received_message_{true};
     double max_age_{0.5};
     std::string drone_id_{};
     int serialization_method_{0};
@@ -138,7 +150,7 @@ private:
     std::map<std::string, rclcpp::Time> observed_senders_times_{};
     // Container to count messages per drone - e.g. detect message flooding
     std::map<std::string, uint16_t> sender_count_{};
-    std::map<in_addr_t, uint16_t> ip_addr_count_{};
+    std::map<in_addr_t, unsigned long> ip_addr_count_{};
 
     /// Previously received own trajectory
     fognav_msgs::msg::Trajectory trajectory_;

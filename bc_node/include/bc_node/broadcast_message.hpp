@@ -335,7 +335,11 @@ struct BroadcastMessagePoint
     }
     void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
     {
-        trajectory->droneid = std::string(droneid, 20);
+        trajectory->droneid = std::string(droneid); //, 20);
+        if (trajectory->droneid.length() > 20)
+        {
+            trajectory->droneid.resize(20);
+        }
         trajectory->priority = priority;
         trajectory->header.stamp.sec = sec;
         trajectory->header.stamp.nanosec = nsec;

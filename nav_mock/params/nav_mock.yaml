@@ -1,0 +1,23 @@
+nav_mock:
+  ros__parameters:
+    # Drone identifier
+    drone_id: "Testi_drone_1"
+    # right of way priority
+    priority: 123             # positive value
+
+    # Alter trajectory time from node's current time
+    time_skew: 0.0            # seconds
+    # extra offset on 6th sample on path point
+    path_jump_on_6: 0.0    # meters
+ 
+    # Datum configuration
+    datum_latitude: 23.22122  # degrees: -90.0..+90.0
+    datum_longitude: 64.54332 # degrees: -180.0..+180.0
+    datum_altitude: 123.311   # meters
+
+    # How often own drone trajectory is sent out
+    publish_interval_s: 0.1   # seconds
+    # Own drone trajectory for next few seconds to be broadcasted out
+    output_trajectory_topic: "navigation/trajectory"
+    # Trajectories received from other drones
+    input_trajectory_topic: "bc_node/trajectories"
