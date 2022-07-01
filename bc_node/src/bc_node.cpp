@@ -2,7 +2,6 @@
 #include "bc_node/broadcast_message.hpp"
 #include "bc_node/param_checker.hpp"
 #include "bc_node/validation.hpp"
-#include <bitset>
 #include <errno.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -387,8 +386,8 @@ bool BCNode::get_trajectory_from_msg(const std::string& msg,
 
 /// @brief Function to deserialize UDP packet string to Trajectory message
 ///
-/// @param[in]  msg Message to be deserialized
-/// @param[out] trajectory Deserialized trajectory (or nullptr)
+/// @param[in]  msg         Message to be deserialized
+/// @param[out] trajectory  Deserialized trajectory (or nullptr)
 /// @return true if deserialization was successful
 bool BCNode::deserialize_trajectory(const std::string& msg,
                                     fognav_msgs::msg::Trajectory::UniquePtr& trajectory)
@@ -496,7 +495,7 @@ void BCNode::broadcast_udp_message()
     std::string encrypted_msg{encrypt(signed_msg)};
 
     // send the message
-    send_udp(header.to_string() + encrypted_msg);
+    send_udp(header.serialize() + encrypted_msg);
 }
 
 /// @brief Non-blocking function to receive UDP packet
@@ -574,13 +573,13 @@ void BCNode::receive_broadcast_message()
 
         // Parse header
         HeaderV0 header;
-        if (!header.from_string(received_str))
+        if (!header.parse(received_str))
         {
             continue;
         }
         if (print_received_message_)
         {
-            print_header(header);
+            RCLCPP_INFO_STREAM(get_logger(), "Header" << header);
         }
 
         // Check version
@@ -676,8 +675,6 @@ void BCNode::receive_broadcast_message()
             continue;
         }
 
-        sender_count_[trajectory->droneid]++;
-
         // Check that IP matches the droneid
         if (!check_ip(trajectory->droneid, recv_addr_))
         {
@@ -712,28 +709,6 @@ void BCNode::receive_broadcast_message()
         // Relay message forward
         pub_->publish(std::move(trajectory));
     }
-}
-
-/// @brief Print header
-///
-/// ┌Enc┬Sig┬MsgType┬Ros┬──Version──┐
-/// │ 0 │ 1 │ 0   0 │ 1 │ 0   0   0 │
-/// └───┴───┴───┴───┴───┴───┴───┴───┘
-///
-/// @param[in] header   Header to be printed
-void BCNode::print_header(const HeaderV0& header)
-{
-    RCLCPP_INFO_STREAM(get_logger(),
-                       "Header:\n ┌Enc┬Sig┬MsgType┬Ros┬──Version──┐\n │ "
-                           << (header.encryption ? "1" : "0") << " │ "
-                           << (header.signature ? "1" : "0") << " │ "
-                           << (header.message_type >> 1 & 0b1) << "   "
-                           << (header.message_type & 0b1) << " │ "
-                           << (header.ros_serialization ? "1" : "0") << " │ "
-                           << (header.version >> 2 & 0b1) << "   " << (header.version >> 1 & 0b1)
-                           << "   " << (header.version & 0b1) << " │ "
-                           << std::bitset<8>(header.to_char())
-                           << "\n └───┴───┴───┴───┴───┴───┴───┴───┘");
 }
 
 /// @brief Print received message

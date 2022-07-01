@@ -3,12 +3,10 @@
 
 #include <arpa/inet.h>
 #include <bc_node/broadcast_message.hpp>
+#include <bitset>
 #include <builtin_interfaces/msg/time.hpp>
 #include <fognav_msgs/msg/trajectory.hpp>
 #include <rclcpp/rclcpp.hpp>
-//#include <memory>
-//#include <mutex>
-//#include <string>
 
 namespace bc_node {
 
@@ -44,8 +42,8 @@ struct HeaderV0
         c += encryption << 7;
         return c;
     }
-    std::string to_string() const { return std::string(1, to_char()); }
-    void from_char(const char c)
+    std::string serialize() const { return std::string(1, to_char()); }
+    void parse(const char c)
     {
         version = c & 0b00000111;
         ros_serialization = (c & 0b00001000) >> 3;
@@ -53,16 +51,26 @@ struct HeaderV0
         signature = (c & 0b01000000) >> 6;
         encryption = (c & 0b10000000) >> 7;
     }
-    bool from_string(const std::string& msg)
+    bool parse(const std::string& msg)
     {
         if (msg.length() < 1)
         {
             return false;
         }
-        from_char(msg.at(0));
+        parse(msg.at(0));
         return true;
     }
 };
+inline std::ostream& operator<<(std::ostream& os, const HeaderV0 header)
+{
+    os << "\n ┌Enc┬Sig┬MsgType┬Ros┬──Version──┐\n │ " << (header.encryption ? "1" : "0") << " │ "
+       << (header.signature ? "1" : "0") << " │ " << (header.message_type >> 1 & 0b1) << "   "
+       << (header.message_type & 0b1) << " │ " << (header.ros_serialization ? "1" : "0") << " │ "
+       << (header.version >> 2 & 0b1) << "   " << (header.version >> 1 & 0b1) << "   "
+       << (header.version & 0b1) << " │ " << std::bitset<8>(header.to_char())
+       << "\n └───┴───┴───┴───┴───┴───┴───┴───┘";
+    return os;
+}
 
 class BCNode : public rclcpp::Node
 {
@@ -86,7 +94,6 @@ private:
     /// @ingroup Message receiving
     void receive_broadcast_message();
     std::string receive_udp();
-    void print_header(const HeaderV0& header);
     void print_trajectory(const fognav_msgs::msg::Trajectory::UniquePtr& trajectory,
                           int message_type);
 
@@ -131,7 +138,6 @@ private:
     /// @ingroup Parameters
     std::string broadcast_ip_{};
     uint16_t broadcast_port_{0};
-    // double broadcast_interval_{0.1};
     bool immediate_broadcast_{false};
     double signature_check_interval_{1.0};
     bool sign_messages_{true};
@@ -144,12 +150,9 @@ private:
 
     /// @ingroup storage, containers
 
-    // Container for observed senders book keeping
-    // std::set<std::string> observed_senders_{};
-    // Map to store the latest drone signature check timestamp
+    /// Map to store the latest drone signature check timestamp
     std::map<std::string, rclcpp::Time> observed_senders_times_{};
-    // Container to count messages per drone - e.g. detect message flooding
-    std::map<std::string, uint16_t> sender_count_{};
+    /// Container to count messages per ip address - e.g. detect message flooding
     std::map<in_addr_t, unsigned long> ip_addr_count_{};
 
     /// Previously received own trajectory
@@ -158,7 +161,7 @@ private:
     rcutils_uint8_array_t serialized_msg_;
     rcutils_uint8_array_t serialized_in_msg_;
 
-    // ros message types
+    /// ros message types
     const rosidl_message_type_support_t* trajectory_ts_;
 
     /// @ingroup socket
