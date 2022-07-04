@@ -52,7 +52,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ParticleCloud.msg"
   "msg/ControlInterfaceDiagnostics.msg"
   "msg/NavigationDiagnostics.msg"
-  "msg/Trajectory.msg"
   "msg/TrajectoryPose.msg"
   "srv/GetCostmap.srv"
   "srv/IsPathValid.srv"

@@ -8,13 +8,13 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(fognav_msgs REQUIRED)
+find_package(fog_msgs REQUIRED)
 
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 add_executable(nav_mock src/nav_mock.cpp)
-ament_target_dependencies(nav_mock rclcpp fognav_msgs)
+ament_target_dependencies(nav_mock rclcpp fog_msgs)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(fognav_msgs REQUIRED)
+find_package(fog_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 
 include_directories(include)
@@ -19,6 +20,7 @@ add_library(${PROJECT_NAME}_lib
 ament_target_dependencies(${PROJECT_NAME}_lib
   rclcpp
   fognav_msgs
+  fog_msgs
   builtin_interfaces
 )
 

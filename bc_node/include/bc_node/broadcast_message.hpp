@@ -3,7 +3,7 @@
 
 #include <cmath>
 #include <cstring>
-#include <fognav_msgs/msg/trajectory.hpp>
+#include <fog_msgs/msg/trajectory.hpp>
 #include <fognav_msgs/msg/trajectory_pose.hpp>
 #include <string>
 #include <type_traits>
@@ -333,7 +333,7 @@ struct BroadcastMessagePoint
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + datum.length()
                + 10 * path[0].length();
     }
-    void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
+    void to_rosmsg(fog_msgs::msg::Trajectory::UniquePtr& trajectory) const
     {
         trajectory->droneid = std::string(droneid); //, 20);
         if (trajectory->droneid.length() > 20)
@@ -366,7 +366,7 @@ struct BroadcastMessagePoint
         }
     }
 
-    void from_rosmsg(const fognav_msgs::msg::Trajectory& trajectory)
+    void from_rosmsg(const fog_msgs::msg::Trajectory& trajectory)
     {
         strncpy(droneid, trajectory.droneid.c_str(), 20);
         priority = trajectory.priority;
@@ -453,7 +453,7 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
         return 20 + sizeof(priority) + sizeof(sec) + sizeof(nsec) + datum.length()
                + 10 * path[0].length();
     }
-    void to_rosmsg(fognav_msgs::msg::Trajectory::UniquePtr& trajectory) const
+    void to_rosmsg(fog_msgs::msg::Trajectory::UniquePtr& trajectory) const
     {
         trajectory->droneid = std::string(droneid);
         trajectory->priority = priority;
@@ -470,7 +470,7 @@ struct BroadcastMessageMin // 20 + 1 + 4 + 4 + 10 + 10*6 = 99 B
         }
     }
 
-    void from_rosmsg(const fognav_msgs::msg::Trajectory& trajectory)
+    void from_rosmsg(const fog_msgs::msg::Trajectory& trajectory)
     {
         strncpy(droneid, trajectory.droneid.c_str(), 20);
         priority = trajectory.priority;

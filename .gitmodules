@@ -1,0 +1,3 @@
+[submodule "fog_msgs"]
+	path = fog_msgs
+	url = git@github.com:tiiuae/fog_msgs.git

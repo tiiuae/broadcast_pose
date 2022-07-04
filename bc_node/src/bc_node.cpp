@@ -88,14 +88,14 @@ bool BCNode::init()
     }
 
     // Own trajectory subscriber
-    sub_ = create_subscription<fognav_msgs::msg::Trajectory>(trajectory_topic_in,
-                                                             rclcpp::SystemDefaultsQoS(),
-                                                             std::bind(&BCNode::trajectory_callback,
-                                                                       this,
-                                                                       std::placeholders::_1));
+    sub_ = create_subscription<fog_msgs::msg::Trajectory>(trajectory_topic_in,
+                                                          rclcpp::SystemDefaultsQoS(),
+                                                          std::bind(&BCNode::trajectory_callback,
+                                                                    this,
+                                                                    std::placeholders::_1));
 
     // Received trajectories publisher
-    pub_ = create_publisher<fognav_msgs::msg::Trajectory>(trajectory_topic_out, 100);
+    pub_ = create_publisher<fog_msgs::msg::Trajectory>(trajectory_topic_out, 100);
 
     // UDP broadcast timer
     if (broadcast_interval.count() > 0.0)
@@ -162,7 +162,7 @@ bool BCNode::init()
 
     // typesupport for Serializing trajectory messages
     trajectory_ts_
-        = rosidl_typesupport_cpp::get_message_type_support_handle<fognav_msgs::msg::Trajectory>();
+        = rosidl_typesupport_cpp::get_message_type_support_handle<fog_msgs::msg::Trajectory>();
 
     // Serialized broadcast message initialization
     serialized_msg_ = rmw_get_zero_initialized_serialized_message();
@@ -230,7 +230,7 @@ bool BCNode::init()
 /// @brief Callback function for trajectory messages
 ///
 /// @param[in] msg  Trajectory containing next few seconds of own flight path
-void BCNode::trajectory_callback(const fognav_msgs::msg::Trajectory::SharedPtr msg)
+void BCNode::trajectory_callback(const fog_msgs::msg::Trajectory::SharedPtr msg)
 {
     if (!validate_geopoint(*this, msg->datum)) //! validate_trajectory(*this, msg))
     {
@@ -344,7 +344,7 @@ std::string BCNode::get_serialized_trajectory()
 /// @return true if message conversion to trajectory was successful
 template<typename T>
 bool BCNode::get_trajectory_from_msg(const std::string& msg,
-                                     fognav_msgs::msg::Trajectory::UniquePtr& trajectory)
+                                     fog_msgs::msg::Trajectory::UniquePtr& trajectory)
 {
     BroadcastMessagePoint<T> received;
     if (msg.size() != received.length())
@@ -367,7 +367,7 @@ bool BCNode::get_trajectory_from_msg(const std::string& msg,
 /// @param[out]     trajectory  Trajectory message
 /// @return true if message conversion to trajectory was successful
 bool BCNode::get_trajectory_from_msg(const std::string& msg,
-                                     fognav_msgs::msg::Trajectory::UniquePtr& trajectory)
+                                     fog_msgs::msg::Trajectory::UniquePtr& trajectory)
 {
     BroadcastMessageMin received;
     if (msg.size() != received.length())
@@ -390,7 +390,7 @@ bool BCNode::get_trajectory_from_msg(const std::string& msg,
 /// @param[out] trajectory  Deserialized trajectory (or nullptr)
 /// @return true if deserialization was successful
 bool BCNode::deserialize_trajectory(const std::string& msg,
-                                    fognav_msgs::msg::Trajectory::UniquePtr& trajectory)
+                                    fog_msgs::msg::Trajectory::UniquePtr& trajectory)
 {
     if (msg.size() < kSerializedTrajectoryMinSize || msg.size() > kSerializedTrajectoryMaxSize)
     {
@@ -610,7 +610,7 @@ void BCNode::receive_broadcast_message()
 
         // Deserialize message to trajectory
         bool deserialize_successful{false};
-        auto trajectory = std::make_unique<fognav_msgs::msg::Trajectory>();
+        auto trajectory = std::make_unique<fog_msgs::msg::Trajectory>();
         if (!header.ros_serialization)
         {
             if (header.message_type == 0)
@@ -727,7 +727,7 @@ void BCNode::receive_broadcast_message()
 ///
 /// @param[in] trajectory   Trajectory message what is formatted and printed out
 /// @param[in] message_type Original received message type
-void BCNode::print_trajectory(const fognav_msgs::msg::Trajectory::UniquePtr& trajectory,
+void BCNode::print_trajectory(const fog_msgs::msg::Trajectory::UniquePtr& trajectory,
                               const int message_type)
 {
     char paths[1500];

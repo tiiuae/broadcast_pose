@@ -5,7 +5,7 @@
 #include <bc_node/broadcast_message.hpp>
 #include <bitset>
 #include <builtin_interfaces/msg/time.hpp>
-#include <fognav_msgs/msg/trajectory.hpp>
+#include <fog_msgs/msg/trajectory.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace bc_node {
@@ -81,7 +81,7 @@ public:
 
 private:
     /// @ingroup Subscriber callbacks
-    void trajectory_callback(const fognav_msgs::msg::Trajectory::SharedPtr msg);
+    void trajectory_callback(const fog_msgs::msg::Trajectory::SharedPtr msg);
 
     /// @ingroup Timer callbacks
     void broadcast_timer_callback();
@@ -94,18 +94,17 @@ private:
     /// @ingroup Message receiving
     void receive_broadcast_message();
     std::string receive_udp();
-    void print_trajectory(const fognav_msgs::msg::Trajectory::UniquePtr& trajectory,
-                          int message_type);
+    void print_trajectory(const fog_msgs::msg::Trajectory::UniquePtr& trajectory, int message_type);
 
     /// @ingroup Serialization functions
     std::string get_serialized_trajectory();
     bool deserialize_trajectory(const std::string& msg,
-                                fognav_msgs::msg::Trajectory::UniquePtr& trajectory);
+                                fog_msgs::msg::Trajectory::UniquePtr& trajectory);
     template<typename T>
     bool get_trajectory_from_msg(const std::string& msg,
-                                 fognav_msgs::msg::Trajectory::UniquePtr& trajectory);
+                                 fog_msgs::msg::Trajectory::UniquePtr& trajectory);
     bool get_trajectory_from_msg(const std::string& msg,
-                                 fognav_msgs::msg::Trajectory::UniquePtr& trajectory);
+                                 fog_msgs::msg::Trajectory::UniquePtr& trajectory);
     template<typename T>
     std::string get_msg_from_trajectory();
     std::string get_msg_from_trajectory();
@@ -125,10 +124,10 @@ private:
     }
 
     /// @ingroup Publishers
-    rclcpp::Publisher<fognav_msgs::msg::Trajectory>::SharedPtr pub_;
+    rclcpp::Publisher<fog_msgs::msg::Trajectory>::SharedPtr pub_;
 
     /// @ingroup Subscribers
-    rclcpp::Subscription<fognav_msgs::msg::Trajectory>::SharedPtr sub_;
+    rclcpp::Subscription<fog_msgs::msg::Trajectory>::SharedPtr sub_;
 
     /// @ingroup Timers
     rclcpp::TimerBase::SharedPtr broadcast_timer_;
@@ -156,7 +155,7 @@ private:
     std::map<in_addr_t, unsigned long> ip_addr_count_{};
 
     /// Previously received own trajectory
-    fognav_msgs::msg::Trajectory trajectory_;
+    fog_msgs::msg::Trajectory trajectory_;
     /// Serialization containers for trajectories
     rcutils_uint8_array_t serialized_msg_;
     rcutils_uint8_array_t serialized_in_msg_;

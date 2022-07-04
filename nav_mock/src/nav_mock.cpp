@@ -4,7 +4,7 @@
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
-#include <fognav_msgs/msg/trajectory.hpp>
+#include <fog_msgs/msg/trajectory.hpp>
 
 using namespace std::chrono_literals;
 
@@ -19,9 +19,9 @@ public:
     datum_lon_ = declare_parameter("datum_longitude", 64.54332);
     datum_alt_ = declare_parameter("datum_altitude", 123.311);
     publish_interval_s_ = declare_parameter("publish_interval_s", 0.1);
-    publisher_ = create_publisher<fognav_msgs::msg::Trajectory>(
+    publisher_ = create_publisher<fog_msgs::msg::Trajectory>(
         "navigation/trajectory", 10);
-    sub_ = create_subscription<fognav_msgs::msg::Trajectory>(
+    sub_ = create_subscription<fog_msgs::msg::Trajectory>(
         "bc_node/trajectories", rclcpp::SystemDefaultsQoS(),
         std::bind(&NavMock::trajectory_callback, this, std::placeholders::_1));
     timer_ = rclcpp::create_timer(
@@ -31,7 +31,7 @@ public:
 
 private:
   void timer_callback() {
-    auto msg = fognav_msgs::msg::Trajectory();
+    auto msg = fog_msgs::msg::Trajectory();
     msg.header.stamp = now() + rclcpp::Duration::from_seconds(time_skew_);
     msg.priority = priority_;
     msg.droneid = drone_id_;
@@ -65,7 +65,7 @@ private:
     //}
     publisher_->publish(msg);
   }
-  void trajectory_callback(const fognav_msgs::msg::Trajectory::SharedPtr msg) {
+  void trajectory_callback(const fog_msgs::msg::Trajectory::SharedPtr msg) {
     RCLCPP_INFO_STREAM(
         get_logger(),
         "Received message:\n -droneid:"
@@ -82,8 +82,8 @@ private:
     //}
   }
   rclcpp::TimerBase::SharedPtr timer_;
-  rclcpp::Publisher<fognav_msgs::msg::Trajectory>::SharedPtr publisher_;
-  rclcpp::Subscription<fognav_msgs::msg::Trajectory>::SharedPtr sub_;
+  rclcpp::Publisher<fog_msgs::msg::Trajectory>::SharedPtr publisher_;
+  rclcpp::Subscription<fog_msgs::msg::Trajectory>::SharedPtr sub_;
   size_t count_;
   std::string drone_id_;
   double time_skew_;
